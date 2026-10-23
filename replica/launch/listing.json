@@ -1,0 +1,21 @@
+{
+  "avoid": [
+    "Cashew",
+    "jameskokoska",
+    "Cashew Budget",
+    "tracker_app"
+  ],
+  "app_store": {
+    "name": "VaultPace: Budget & Expense",
+    "subtitle": "Track burn rate and spending",
+    "promotional_text": "Audit your finances on desktop and mobile. Visualize your daily spending pace, log expenses in 3 clicks, and keep 100% of your data offline with zero tracking.",
+    "description": "VaultPace is the fast, privacy-first personal budget tracker and ledger designed for desktop and mobile.\n\nTake control of your burn rate with visual pace indicators that show you exactly where your spending stands relative to the day of the month.\n\nKey Capabilities:\n• Visual Pace Indicator: A dedicated marker shows your target daily burn rate across weekly and monthly budgets.\n• 3-Click Logging: Quick increment chips let you capture cash and card expenses in seconds without tedious numeric typing.\n• Multi-Account Ledger: Track checking, savings, credit cards, and cash in isolated currency pools.\n• Atomic Transfers: Effortlessly move money between accounts with built-in validation.\n• 100% Offline Privacy: Your financial transactions stay stored on your device. Zero bank logins required, zero telemetry, and zero ads.\n• Verified Data Portability: Export and import complete ledgers in standard CSV and uncompressed JSON anytime.\n• Cross-Device Experience: Full-screen desktop audit views with dark and light themes.\n\nDownload VaultPace and gain clarity over your personal finances today.",
+    "keywords": "money,ledger,finance,offline,envelope,savings,wallet,receipt,calculator,cash,audit",
+    "whats_new": "Initial release of VaultPace with multi-account net worth tracking, customizable weekly and monthly budgets with daily pace indicators, interactive SVG donut charts, and verified offline CSV/JSON export."
+  },
+  "google_play": {
+    "title": "VaultPace: Budget & Expense",
+    "short_description": "Track daily spending pace, manage budgets, and keep your data 100% offline.",
+    "full_description": "VaultPace is the fast, privacy-first personal budget tracker and ledger designed for desktop and mobile.\n\nTake control of your burn rate with visual pace indicators that show you exactly where your spending stands relative to the day of the month.\n\nKey Capabilities:\n• Visual Pace Indicator: A dedicated marker shows your target daily burn rate across weekly and monthly budgets.\n• 3-Click Logging: Quick increment chips let you capture cash and card expenses in seconds without tedious numeric typing.\n• Multi-Account Ledger: Track checking, savings, credit cards, and cash in isolated currency pools.\n• Atomic Transfers: Move money between accounts with built-in validation.\n• 100% Offline Privacy: Your financial transactions stay stored on your device. Zero bank logins required, zero telemetry, and zero ads.\n• Verified Data Portability: Export and import complete ledgers in standard CSV and uncompressed JSON anytime.\n• Cross-Device Experience: Responsive desktop audit views with dark and light themes.\n\nGain clarity over your personal finances today with VaultPace."
+  }
+}

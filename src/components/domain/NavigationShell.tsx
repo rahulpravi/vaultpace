@@ -70,6 +70,14 @@ export const NavigationShell: React.FC<NavigationShellProps> = ({ children }) =>
     { label: 'Settings', href: '/settings', icon: Settings },
   ];
 
+  if (pathname === '/launch') {
+    return (
+      <div className="min-h-screen bg-bg text-text transition-colors">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-bg text-text transition-colors">
       {/* =========================================================================
