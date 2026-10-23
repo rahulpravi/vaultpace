@@ -1,0 +1,26 @@
+feature,area,priority,original,clone,notes
+Record expense transaction (amount category account date notes),transactions,must,yes,no,core tracking flow
+Record income transaction,transactions,must,yes,no,revenue and deposits
+Transaction ledger with date grouping and filters,transactions,must,yes,no,full history and audit
+Multi-account management (Cash Bank Savings Credit),accounts,must,yes,no,isolated balances and net worth
+Real-time account balance updates on transaction change,accounts,must,yes,no,atomic balance calculation
+Custom categories with color and icon selection,categories,must,yes,no,customizable taxonomy
+Flexible period budgeting (weekly monthly),budgets,must,yes,no,core budget limit configuration
+Budget progress tracking with daily burn rate and today marker,budgets,must,yes,no,tracks pace of spend vs calendar
+Category-level budget limits with overspend alerts,budgets,must,yes,no,visual warnings when threshold exceeded
+Interactive category donut chart with slice icons,analytics,must,yes,no,visual breakdown of spending
+Time-series spending trend line chart,analytics,must,yes,no,spending velocity over days and weeks
+Light and Dark theme modes,theming,must,yes,no,system-matched or user-selected
+10-color accent theme customization,theming,must,yes,no,palette selector
+Local-first offline persistent storage,storage,must,yes,no,zero cloud dependency private storage
+Account-to-account transfer transactions,transactions,should,yes,no,moving funds between accounts
+Yearly and custom-range budgets,budgets,should,yes,no,annualized budgeting
+Period-over-period trend comparisons,analytics,should,yes,no,this month vs last month
+Export data to CSV and JSON,settings,should,yes,no,user data portability
+Import data from CSV,settings,should,yes,no,switching from other trackers
+Recurring subscriptions and bills tracker,subscriptions,could,yes,no,upcoming payment reminders
+Multi-currency exchange rate conversions,accounts,could,yes,no,foreign currency account valuations
+Biometric / PIN app lock,security,could,yes,no,local device protection
+Google Drive cloud backup,cloud,skip,yes,skip,requires proprietary Google OAuth verification and client credentials
+Third-party bank API sync (Plaid),integrations,skip,yes,skip,requires commercial banking contracts and regulatory compliance
+Third-party advertising networks,monetization,skip,no,skip,user explicitly specified privacy-first zero-ads experience
