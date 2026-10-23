@@ -390,19 +390,23 @@ class Store {
 export const store = new Store();
 
 // Formatting and Utility Helpers
-export function formatCurrency(cents: number, currency: string = 'USD'): string {
+export function formatCurrency(cents: number, currency?: string): string {
   const isNegative = cents < 0;
   const absDollars = Math.abs(cents) / 100;
+  const selectedCurrency = (currency || store.getState()?.settings?.default_currency || 'USD').toUpperCase();
   const symbolMap: Record<string, string> = {
     USD: '$',
     EUR: '€',
     GBP: '£',
+    INR: '₹',
+    IND: '₹',
     JPY: '¥',
     CAD: 'CA$',
     AUD: 'A$',
   };
-  const sym = symbolMap[currency] || currency + ' ';
-  const formatted = absDollars.toLocaleString('en-US', {
+  const sym = symbolMap[selectedCurrency] || selectedCurrency + ' ';
+  const locale = (selectedCurrency === 'INR' || selectedCurrency === 'IND') ? 'en-IN' : 'en-US';
+  const formatted = absDollars.toLocaleString(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });

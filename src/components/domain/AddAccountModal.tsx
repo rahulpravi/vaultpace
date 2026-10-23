@@ -112,6 +112,8 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
               onChange={(e) => setCurrency(e.target.value)}
               className="w-full h-11 px-3.5 bg-surface-subtle border border-border rounded-xl text-sm font-medium text-text focus:outline-none focus:ring-2 focus:ring-accent"
             >
+              <option value="INR">INR (₹) - Indian Rupee</option>
+              <option value="IND">IND (₹) - Indian Rupee (IND)</option>
               <option value="USD">USD ($)</option>
               <option value="EUR">EUR (€)</option>
               <option value="GBP">GBP (£)</option>

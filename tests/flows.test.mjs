@@ -11,8 +11,18 @@ import {
 function formatCurrency(cents, currency = 'USD') {
   const isNegative = cents < 0;
   const absDollars = Math.abs(cents) / 100;
-  const sym = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency + ' ';
-  const formatted = absDollars.toLocaleString('en-US', {
+  const curr = currency.toUpperCase();
+  const symbolMap = {
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    INR: '₹',
+    IND: '₹',
+    JPY: '¥',
+  };
+  const sym = symbolMap[curr] || curr + ' ';
+  const locale = (curr === 'INR' || curr === 'IND') ? 'en-IN' : 'en-US';
+  const formatted = absDollars.toLocaleString(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -32,10 +42,13 @@ test('F01: Transaction validation and money math in integer cents', () => {
   assert.equal(parseAmountToCents('250'), 25000);
   assert.equal(parseAmountToCents('0.00'), 0);
 
-  // Formatting verification (handles positive and negative amounts)
+  // Formatting verification (handles positive and negative amounts, and INR/IND)
   assert.equal(formatCurrency(1450, 'USD'), '$14.50');
   assert.equal(formatCurrency(-4154, 'USD'), '-$41.54');
   assert.equal(formatCurrency(385000, 'USD'), '$3,850.00');
+  assert.equal(formatCurrency(1450, 'INR'), '₹14.50');
+  assert.equal(formatCurrency(1450, 'IND'), '₹14.50');
+  assert.equal(formatCurrency(-50000, 'INR'), '-₹500.00');
 
   // Valid expense
   const validExpense = createTransactionSchema.safeParse({

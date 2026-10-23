@@ -118,6 +118,8 @@ export default function SettingsPage() {
             onChange={(e) => updateSettings({ default_currency: e.target.value })}
             className="h-10 px-3 bg-surface-subtle border border-border rounded-xl text-xs font-bold text-text focus:outline-none focus:ring-2 focus:ring-accent"
           >
+            <option value="INR">INR (₹) - Indian Rupee</option>
+            <option value="IND">IND (₹) - Indian Rupee (IND)</option>
             <option value="USD">USD ($) - United States Dollar</option>
             <option value="EUR">EUR (€) - Euro</option>
             <option value="GBP">GBP (£) - British Pound</option>

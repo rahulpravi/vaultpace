@@ -108,7 +108,7 @@ export const AddBudgetModal: React.FC<AddBudgetModalProps> = ({
 
         {/* Spending Cap Amount */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-text-muted">Limit Amount ($ USD)</label>
+          <label className="text-xs font-semibold text-text-muted">Limit Amount</label>
           <input
             type="number"
             step="10"
