@@ -2,6 +2,7 @@ import React from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   Switch,
@@ -505,9 +506,11 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
           ]}
         >
-          <View style={[styles.badgeIcon, { backgroundColor: colors.accentLight }]}>
-            <ShieldCheck size={20} color={colors.accent} />
-          </View>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.badgeLogo}
+            resizeMode="contain"
+          />
           <View style={{ flex: 1 }}>
             <Text style={[styles.privacyTitle, { color: colors.text }]}>
               VaultPace Mobile v1.0.0
@@ -697,12 +700,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 20,
   },
-  badgeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+  badgeLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
   },
   privacyTitle: {
     fontSize: 13,

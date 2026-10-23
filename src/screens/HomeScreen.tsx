@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -75,26 +76,41 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         ]}
       >
         {/* =========================================================================
-            Top Header & Privacy Badge
+            Brand App Bar with VaultPace Logo
             ========================================================================= */}
-        <View style={styles.topHeader}>
-          <View>
-            <View style={styles.privacyRow}>
-              <Text style={[styles.netWorthLabel, { color: colors.textMuted }]}>
-                TOTAL NET WORTH
+        <View style={styles.brandRow}>
+          <View style={styles.brandLeft}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <View>
+              <Text style={[styles.brandTitle, { color: colors.text }]}>VaultPace</Text>
+              <Text style={[styles.brandSubtitle, { color: colors.textMuted }]}>
+                Private Financial Tracker
               </Text>
-              <View style={[styles.privacyBadge, { backgroundColor: colors.accentLight }]}>
-                <ShieldCheck size={12} color={colors.accent} />
-                <Text style={[styles.privacyBadgeText, { color: colors.accent }]}>
-                  Local & Private
-                </Text>
-              </View>
             </View>
+          </View>
 
-            <Text style={[styles.netWorthAmount, { color: colors.text }]}>
-              {formatCurrency(totalNetWorth)}
+          <View style={[styles.privacyBadge, { backgroundColor: colors.accentLight }]}>
+            <ShieldCheck size={12} color={colors.accent} />
+            <Text style={[styles.privacyBadgeText, { color: colors.accent }]}>
+              Local & Private
             </Text>
           </View>
+        </View>
+
+        {/* =========================================================================
+            Top Net Worth Summary
+            ========================================================================= */}
+        <View style={styles.topHeader}>
+          <Text style={[styles.netWorthLabel, { color: colors.textMuted }]}>
+            TOTAL NET WORTH
+          </Text>
+          <Text style={[styles.netWorthAmount, { color: colors.text }]}>
+            {formatCurrency(totalNetWorth)}
+          </Text>
         </View>
 
         {/* =========================================================================
@@ -281,6 +297,33 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingTop: 4,
+  },
+  brandLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+  },
+  brandTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+  },
+  brandSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 1,
   },
   topHeader: {
     marginBottom: 16,
