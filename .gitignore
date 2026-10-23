@@ -37,6 +37,7 @@ next-env.d.ts
 # Android
 .gradle/
 **/android/.gradle/
+**/android/build/
 **/android/app/build/
 **/android/local.properties
 
