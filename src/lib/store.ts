@@ -1,4 +1,4 @@
-import { Account, Budget, Category, Transaction, UserSettings, AccentColor, ThemeMode } from '@/types';
+import type { Account, Budget, Category, Transaction, UserSettings, AccentColor, ThemeMode } from '@/types';
 
 const STORAGE_KEY = 'fundtracker_state_v1';
 
