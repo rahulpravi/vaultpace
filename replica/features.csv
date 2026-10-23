@@ -1,26 +1,26 @@
 feature,area,priority,original,clone,notes
-Record expense transaction (amount category account date notes),transactions,must,yes,no,core tracking flow
-Record income transaction,transactions,must,yes,no,revenue and deposits
-Transaction ledger with date grouping and filters,transactions,must,yes,no,full history and audit
-Multi-account management (Cash Bank Savings Credit),accounts,must,yes,no,isolated balances and net worth
-Real-time account balance updates on transaction change,accounts,must,yes,no,atomic balance calculation
-Custom categories with color and icon selection,categories,must,yes,no,customizable taxonomy
-Flexible period budgeting (weekly monthly),budgets,must,yes,no,core budget limit configuration
-Budget progress tracking with daily burn rate and today marker,budgets,must,yes,no,tracks pace of spend vs calendar
-Category-level budget limits with overspend alerts,budgets,must,yes,no,visual warnings when threshold exceeded
-Interactive category donut chart with slice icons,analytics,must,yes,no,visual breakdown of spending
-Time-series spending trend line chart,analytics,must,yes,no,spending velocity over days and weeks
-Light and Dark theme modes,theming,must,yes,no,system-matched or user-selected
-10-color accent theme customization,theming,must,yes,no,palette selector
-Local-first offline persistent storage,storage,must,yes,no,zero cloud dependency private storage
-Account-to-account transfer transactions,transactions,should,yes,no,moving funds between accounts
-Yearly and custom-range budgets,budgets,should,yes,no,annualized budgeting
-Period-over-period trend comparisons,analytics,should,yes,no,this month vs last month
-Export data to CSV and JSON,settings,should,yes,no,user data portability
-Import data from CSV,settings,should,yes,no,switching from other trackers
-Recurring subscriptions and bills tracker,subscriptions,could,yes,no,upcoming payment reminders
-Multi-currency exchange rate conversions,accounts,could,yes,no,foreign currency account valuations
-Biometric / PIN app lock,security,could,yes,no,local device protection
+Record expense transaction (amount category account date notes),transactions,must,yes,yes,core tracking flow in S02 AddTransactionModal
+Record income transaction,transactions,must,yes,yes,revenue and deposits in S02
+Transaction ledger with date grouping and filters,transactions,must,yes,yes,full audit log in S03 TransactionsPage
+Multi-account management (Cash Bank Savings Credit),accounts,must,yes,yes,isolated balances and net worth in S07 AccountsPage
+Real-time account balance updates on transaction change,accounts,must,yes,yes,atomic dynamic balance recalculation in store
+Custom categories with color and icon selection,categories,must,yes,yes,customizable taxonomy in S08 CategoriesPage
+Flexible period budgeting (weekly monthly),budgets,must,yes,yes,core budget limit configuration in S04 & S05
+Budget progress tracking with daily burn rate and today marker,budgets,must,yes,yes,tracks pace of spend vs calendar in BudgetProgressCard
+Category-level budget limits with overspend alerts,budgets,must,yes,yes,visual warnings when threshold exceeded in CategoryBudgetItem
+Interactive category donut chart with slice icons,analytics,must,yes,yes,visual breakdown of spending in S06 CategoryDonutChart
+Time-series spending trend line chart,analytics,must,yes,yes,spending velocity over days and weeks in SpendingLineGraph
+Light and Dark theme modes,theming,must,yes,yes,system-matched or user-selected via [data-theme]
+10-color accent theme customization,theming,must,yes,yes,10-palette selector in S09 Settings
+Local-first offline persistent storage,storage,must,yes,yes,zero cloud dependency private storage in localStorage/IndexedDB
+Account-to-account transfer transactions,transactions,should,yes,yes,moving funds between accounts in S02 transfer mode
+Yearly and custom-range budgets,budgets,should,yes,yes,annualized budgeting in S05
+Period-over-period trend comparisons,analytics,should,yes,yes,monthly/quarterly/yearly velocity in S06
+Export data to CSV and JSON,settings,should,yes,yes,user data portability in S09 Settings
+Import data from CSV,settings,should,yes,partial,basic CSV parsing and export implemented in S09
+Recurring subscriptions and bills tracker,subscriptions,could,yes,partial,schema and data models defined
+Multi-currency exchange rate conversions,accounts,could,yes,no,multi-currency stored per account without live FX
+Biometric / PIN app lock,security,could,yes,no,browser local security setting flag in place
 Google Drive cloud backup,cloud,skip,yes,skip,requires proprietary Google OAuth verification and client credentials
 Third-party bank API sync (Plaid),integrations,skip,yes,skip,requires commercial banking contracts and regulatory compliance
 Third-party advertising networks,monetization,skip,no,skip,user explicitly specified privacy-first zero-ads experience
