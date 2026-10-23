@@ -24,3 +24,6 @@ Biometric / PIN app lock,security,could,yes,no,browser local security setting fl
 Google Drive cloud backup,cloud,skip,yes,skip,requires proprietary Google OAuth verification and client credentials
 Third-party bank API sync (Plaid),integrations,skip,yes,skip,requires commercial banking contracts and regulatory compliance
 Third-party advertising networks,monetization,skip,no,skip,user explicitly specified privacy-first zero-ads experience
+Unified responsive desktop web application with clock sidebar,platforms,should,no,yes,remedies lack of desktop access in Cashew
+Quick-add increment chips in transaction amount modal,transactions,should,no,yes,reduces logging friction from 4 clicks to 3
+Verified 1-click JSON backup and CSV export without cloud OAuth,settings,should,no,yes,remedies Google Drive sync data loss complaints
