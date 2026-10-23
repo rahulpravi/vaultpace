@@ -33,10 +33,26 @@ jobs:
         with:
           gradle-version: "8.5"
 
+      - name: Configure Android SDK Licenses & Environment
+        run: |
+          mkdir -p "$ANDROID_HOME/licenses"
+          printf "24333f8a63b68256927903a6f786504046cb2e9e\n89338d0d9b183fb97af1110d21247c2126fb1f20\nd56f5187479451eabf01fb78af6dfcb131a6481e\n" > "$ANDROID_HOME/licenses/android-sdk-license"
+          printf "84831b9409646a2a0e23e25d2b7ac535c8e2354c\n" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          cd android
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle wrapper --gradle-version 8.5
+          chmod +x gradlew
+
       - name: Build Debug APK with Gradle
         run: |
           cd android
-          gradle assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/gradle-build.log || {
+            echo "### ❌ Gradle Build Error Details" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 120 /tmp/gradle-build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
       - name: Copy & Rename APK
         run: |
@@ -71,3 +87,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
+
+      - name: Publish Success Step Summary
+        if: success()
+        run: |
+          echo "## 🎉 VaultPace Android APK Built Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Debug APK has been compiled, packaged, and verified." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 How to Download & Install:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Scroll down to the **Artifacts** section below." >> $GITHUB_STEP_SUMMARY
+          echo "2. Download **VaultPace-Android-APK**." >> $GITHUB_STEP_SUMMARY
+          echo "3. Open on your Android phone and install." >> $GITHUB_STEP_SUMMARY

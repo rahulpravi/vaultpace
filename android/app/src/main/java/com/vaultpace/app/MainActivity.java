@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
                 Uri uri = request.getUrl();
                 if (uri != null && uri.getHost() != null) {
                     String host = uri.getHost();
-                    if (host.contains("vaultpace.app") || host.contains("localhost") || host.contains("10.0.2.2")) {
+                    if (host.contains("vaultpace.app") || host.contains("localhost") || host.contains("10.0.2.2") || host.contains("vercel.app")) {
                         return false;
                     }
                 }
