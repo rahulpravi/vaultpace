@@ -76,4 +76,24 @@ export interface UserSettings {
   first_day_of_week: number; // 0=Sunday, 1=Monday
   biometrics_enabled: boolean;
   last_backup_date?: string;
+  notifications_enabled: boolean;
+  haptics_enabled: boolean;
 }
+
+// React Navigation Types
+export type BottomTabParamList = {
+  HomeTab: undefined;
+  TransactionsTab: undefined;
+  BudgetsTab: undefined;
+  AccountsTab: undefined;
+  SettingsTab: undefined;
+};
+
+export type RootStackParamList = {
+  MainTabs: undefined;
+  HelpContact: undefined;
+  AddTransaction: undefined;
+  AddAccount: undefined;
+  AddBudget: undefined;
+  Categories: undefined;
+};

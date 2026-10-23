@@ -1,220 +1,505 @@
-'use client';
-
 import React, { useState } from 'react';
-import { Account, Category, TransactionType } from '@/types';
-import { ModalDialog } from '../primitives/ModalDialog';
-import { PillSegmentedControl } from '../primitives/PillSegmentedControl';
-import { NumericAmountInput } from '../primitives/NumericAmountInput';
-import { CategoryIconAvatar } from '../primitives/CategoryIconAvatar';
-import { Button } from '../primitives/Button';
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Calendar } from 'lucide-react';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { useAppTheme } from '../../theme/useTheme';
+import { useStore, parseAmountToCents } from '../../store/useStore';
+import { TransactionType } from '../../types';
+import * as Haptics from 'expo-haptics';
+import { X, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Check } from 'lucide-react-native';
 
 interface AddTransactionModalProps {
-  isOpen: boolean;
+  visible: boolean;
   onClose: () => void;
-  accounts: Account[];
-  categories: Category[];
-  onSave: (tx: {
-    account_id: string;
-    category_id?: string;
-    amount: number;
-    transaction_type: TransactionType;
-    transaction_date: string;
-    transaction_time: string;
-    notes?: string;
-    to_account_id?: string;
-  }) => void;
 }
 
-export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
-  isOpen,
-  onClose,
-  accounts,
-  categories,
-  onSave,
-}) => {
+export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ visible, onClose }) => {
+  const { colors } = useAppTheme();
+  const { accounts, categories, addTransaction } = useStore();
+
   const [type, setType] = useState<TransactionType>('expense');
-  const [cents, setCents] = useState<number>(0);
-  const [accountId, setAccountId] = useState<string>(accounts[0]?.id || '');
-  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id || '');
-  const [toAccountId, setToAccountId] = useState<string>(accounts[1]?.id || accounts[0]?.id || '');
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState<string>('');
+  const [amountStr, setAmountStr] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState(accounts[0]?.id || '');
+  const [selectedToAccountId, setSelectedToAccountId] = useState(
+    accounts[1]?.id || accounts[0]?.id || ''
+  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const filteredCategories = categories.filter((c) =>
     type === 'income' ? c.category_type === 'income' : c.category_type === 'expense'
   );
 
+  const resetForm = () => {
+    setAmountStr('');
+    setNotes('');
+    setError(null);
+    setType('expense');
+  };
+
   const handleSave = () => {
+    const cents = parseAmountToCents(amountStr);
     if (cents <= 0) {
-      setError('Please enter a positive transaction amount.');
+      setError('Please enter a valid amount greater than 0.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-    if (!accountId) {
+
+    if (!selectedAccountId) {
       setError('Please select an account.');
       return;
     }
-    if (type !== 'transfer' && !categoryId) {
-      setError('Please select a category.');
-      return;
-    }
-    if (type === 'transfer' && accountId === toAccountId) {
+
+    if (type === 'transfer' && selectedAccountId === selectedToAccountId) {
       setError('Source and destination accounts must be different.');
       return;
     }
 
+    const today = new Date().toISOString().split('T')[0];
     const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes()
+    ).padStart(2, '0')}:00`;
 
-    onSave({
-      account_id: accountId,
-      category_id: type === 'transfer' ? undefined : categoryId,
+    addTransaction({
+      account_id: selectedAccountId,
+      category_id: type === 'transfer' ? undefined : selectedCategoryId,
       amount: cents,
       transaction_type: type,
-      transaction_date: date,
+      transaction_date: today,
       transaction_time: timeStr,
       notes: notes.trim() || undefined,
-      to_account_id: type === 'transfer' ? toAccountId : undefined,
+      to_account_id: type === 'transfer' ? selectedToAccountId : undefined,
     });
 
-    // Reset and close
-    setCents(0);
-    setNotes('');
-    setError(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    resetForm();
     onClose();
   };
 
   return (
-    <ModalDialog isOpen={isOpen} onClose={onClose} title="Record Transaction">
-      <div className="flex flex-col gap-5">
-        {/* Type Toggle */}
-        <div className="flex justify-center">
-          <PillSegmentedControl
-            value={type}
-            onChange={(v) => {
-              setType(v);
-              setError(null);
-            }}
-            options={[
-              { label: 'Expense', value: 'expense', icon: <ArrowDownLeft size={14} className="text-danger" /> },
-              { label: 'Income', value: 'income', icon: <ArrowUpRight size={14} className="text-success" /> },
-              { label: 'Transfer', value: 'transfer', icon: <ArrowLeftRight size={14} className="text-accent" /> },
-            ]}
-          />
-        </div>
-
-        {/* Large Amount Input */}
-        <NumericAmountInput
-          cents={cents}
-          onChangeCents={(val) => {
-            setCents(val);
-            if (error) setError(null);
-          }}
-          currency={accounts.find((a) => a.id === accountId)?.currency || 'USD'}
-        />
-
-        {error && (
-          <div className="p-2.5 rounded-xl bg-danger-light text-danger text-xs font-medium text-center">
-            {error}
-          </div>
-        )}
-
-        {/* Account Pickers */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-text-muted">
-            {type === 'transfer' ? 'From Account' : 'Account'}
-          </label>
-          <select
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            className="w-full h-11 px-3.5 bg-surface-subtle border border-border rounded-xl text-sm font-medium text-text focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} ({a.currency})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {type === 'transfer' && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-text-muted">To Account</label>
-            <select
-              value={toAccountId}
-              onChange={(e) => setToAccountId(e.target.value)}
-              className="w-full h-11 px-3.5 bg-surface-subtle border border-border rounded-xl text-sm font-medium text-text focus:outline-none focus:ring-2 focus:ring-accent"
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.overlay}
+      >
+        <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+          {/* Header */}
+          <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Record Movement</Text>
+            <TouchableOpacity
+              onPress={() => {
+                resetForm();
+                onClose();
+              }}
+              style={[styles.closeBtn, { backgroundColor: colors.surfaceSubtle }]}
             >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+              <X size={18} color={colors.text} />
+            </TouchableOpacity>
+          </View>
 
-        {/* Category Picker (if not transfer) */}
-        {type !== 'transfer' && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-text-muted">Category</label>
-            <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1 border border-border/60 rounded-xl bg-surface-subtle">
-              {filteredCategories.map((c) => {
-                const isSelected = categoryId === c.id;
+          <ScrollView
+            style={styles.body}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 24 }}
+          >
+            {/* Segmented Control */}
+            <View style={[styles.segmentContainer, { backgroundColor: colors.surfaceSubtle }]}>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setType('expense');
+                }}
+                style={[
+                  styles.segmentBtn,
+                  type === 'expense' && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+              >
+                <ArrowDownLeft
+                  size={14}
+                  color={type === 'expense' ? colors.danger : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: type === 'expense' ? colors.text : colors.textMuted },
+                  ]}
+                >
+                  Expense
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setType('income');
+                }}
+                style={[
+                  styles.segmentBtn,
+                  type === 'income' && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+              >
+                <ArrowUpRight
+                  size={14}
+                  color={type === 'income' ? colors.success : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: type === 'income' ? colors.text : colors.textMuted },
+                  ]}
+                >
+                  Income
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setType('transfer');
+                }}
+                style={[
+                  styles.segmentBtn,
+                  type === 'transfer' && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+              >
+                <ArrowLeftRight
+                  size={14}
+                  color={type === 'transfer' ? colors.accent : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: type === 'transfer' ? colors.text : colors.textMuted },
+                  ]}
+                >
+                  Transfer
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Big Amount Input */}
+            <View style={styles.amountWrap}>
+              <Text style={[styles.currencyPrefix, { color: colors.accent }]}>$</Text>
+              <TextInput
+                value={amountStr}
+                onChangeText={(val) => {
+                  setAmountStr(val);
+                  setError(null);
+                }}
+                placeholder="0.00"
+                placeholderTextColor={colors.textMuted + '80'}
+                keyboardType="decimal-pad"
+                style={[styles.amountInput, { color: colors.text }]}
+                autoFocus
+              />
+            </View>
+
+            {error && (
+              <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
+                <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+              </View>
+            )}
+
+            {/* Account Selector */}
+            <Text style={[styles.label, { color: colors.textMuted }]}>
+              {type === 'transfer' ? 'From Account' : 'Account'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+              {accounts.map((acc) => {
+                const isSelected = selectedAccountId === acc.id;
                 return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCategoryId(c.id)}
-                    className={`flex flex-col items-center p-2 rounded-xl text-center transition-all ${
-                      isSelected
-                        ? 'bg-surface border-2 border-accent shadow-sm scale-100'
-                        : 'hover:bg-surface/60 opacity-80'
-                    }`}
+                  <TouchableOpacity
+                    key={acc.id}
+                    onPress={() => setSelectedAccountId(acc.id)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                        borderColor: isSelected ? colors.accent : colors.border,
+                      },
+                    ]}
                   >
-                    <CategoryIconAvatar iconName={c.icon} color={c.color} size="sm" />
-                    <span className="text-[11px] font-semibold text-text truncate max-w-full mt-1">
-                      {c.name}
-                    </span>
-                  </button>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: isSelected ? colors.onAccent : colors.text },
+                      ]}
+                    >
+                      {acc.name} ({acc.currency})
+                    </Text>
+                  </TouchableOpacity>
                 );
               })}
-            </div>
-          </div>
-        )}
+            </ScrollView>
 
-        {/* Date & Notes Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-text-muted">Date</label>
-            <div className="relative flex items-center">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full h-10 px-3 bg-surface-subtle border border-border rounded-xl text-xs font-medium text-text focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </div>
-          </div>
+            {/* Destination Account for Transfer */}
+            {type === 'transfer' && (
+              <>
+                <Text style={[styles.label, { color: colors.textMuted, marginTop: 12 }]}>
+                  To Destination Account
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.chipScroll}
+                >
+                  {accounts.map((acc) => {
+                    const isSelected = selectedToAccountId === acc.id;
+                    return (
+                      <TouchableOpacity
+                        key={acc.id}
+                        onPress={() => setSelectedToAccountId(acc.id)}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                            borderColor: isSelected ? colors.accent : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: isSelected ? colors.onAccent : colors.text },
+                          ]}
+                        >
+                          {acc.name} ({acc.currency})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-text-muted">Note (Optional)</label>
-            <input
-              type="text"
-              placeholder="e.g. Lunch with colleagues"
+            {/* Category Selector (Non-transfer) */}
+            {type !== 'transfer' && (
+              <>
+                <Text style={[styles.label, { color: colors.textMuted, marginTop: 14 }]}>
+                  Category
+                </Text>
+                <View style={styles.categoriesGrid}>
+                  {filteredCategories.map((cat) => {
+                    const isSelected = selectedCategoryId === cat.id;
+                    return (
+                      <TouchableOpacity
+                        key={cat.id}
+                        onPress={() => setSelectedCategoryId(cat.id)}
+                        style={[
+                          styles.categoryPill,
+                          {
+                            backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                            borderColor: isSelected ? colors.accent : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryPillText,
+                            { color: isSelected ? colors.onAccent : colors.text },
+                          ]}
+                        >
+                          {cat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {/* Notes Input */}
+            <Text style={[styles.label, { color: colors.textMuted, marginTop: 16 }]}>
+              Notes (Optional)
+            </Text>
+            <TextInput
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full h-10 px-3 bg-surface-subtle border border-border rounded-xl text-xs font-medium text-text focus:outline-none focus:ring-2 focus:ring-accent"
+              onChangeText={setNotes}
+              placeholder="e.g. Lunch with friends, groceries..."
+              placeholderTextColor={colors.textMuted + '80'}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.surfaceSubtle,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
             />
-          </div>
-        </div>
 
-        {/* Save Button */}
-        <Button variant="primary" size="lg" onClick={handleSave} className="mt-2 w-full">
-          Save Transaction
-        </Button>
-      </div>
-    </ModalDialog>
+            {/* Save Button */}
+            <TouchableOpacity
+              onPress={handleSave}
+              style={[styles.saveBtn, { backgroundColor: colors.accent }]}
+              activeOpacity={0.8}
+            >
+              <Check size={18} color={colors.onAccent} strokeWidth={2.5} />
+              <Text style={[styles.saveBtnText, { color: colors.onAccent }]}>Save Movement</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    maxHeight: '90%',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  body: {
+    paddingTop: 14,
+  },
+  segmentContainer: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 3,
+    marginBottom: 16,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 11,
+    gap: 6,
+  },
+  segmentActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  amountWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  currencyPrefix: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginRight: 4,
+  },
+  amountInput: {
+    fontSize: 38,
+    fontWeight: '800',
+    minWidth: 140,
+    textAlign: 'center',
+  },
+  errorBox: {
+    padding: 10,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  chipScroll: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  categoryPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  categoryPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  textInput: {
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 20,
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    borderRadius: 16,
+    gap: 8,
+    marginTop: 4,
+  },
+  saveBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+});

@@ -1,154 +1,171 @@
-'use client';
-
 import React from 'react';
-import { Budget, Transaction } from '@/types';
-import { formatCurrency } from '@/lib/store';
-import { History, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useAppTheme } from '../../theme/useTheme';
+import { Budget, Transaction } from '../../types';
+import { formatCurrency } from '../../store/useStore';
+import { AlertTriangle, CheckCircle } from 'lucide-react-native';
 
 interface BudgetProgressCardProps {
   budget: Budget;
   transactions: Transaction[];
-  onHistoryClick?: () => void;
-  className?: string;
 }
 
 export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
   budget,
   transactions,
-  onHistoryClick,
-  className = '',
 }) => {
-  // Filter transactions belonging to this budget's period and categories
-  const relevantTransactions = transactions.filter((t) => {
-    if (t.transaction_type !== 'expense') return false;
-    if (budget.start_date && t.transaction_date < budget.start_date) return false;
-    if (budget.end_date && t.transaction_date > budget.end_date) return false;
-    if (budget.category_ids && budget.category_ids.length > 0) {
-      if (!t.category_id || !budget.category_ids.includes(t.category_id)) return false;
-    }
-    return true;
-  });
+  const { colors } = useAppTheme();
 
-  const totalSpentCents = relevantTransactions.reduce((acc, t) => acc + t.amount, 0);
-  const remainingCents = budget.amount_limit - totalSpentCents;
-  const isOverspent = remainingCents < 0;
+  // Filter transactions for this budget (expenses only)
+  const spentCents = transactions
+    .filter((t) => {
+      if (t.transaction_type !== 'expense') return false;
+      if (budget.category_ids && budget.category_ids.length > 0) {
+        return t.category_id && budget.category_ids.includes(t.category_id);
+      }
+      return true;
+    })
+    .reduce((acc, t) => acc + t.amount, 0);
 
-  const spendPercentage = Math.min(
-    Math.round((totalSpentCents / budget.amount_limit) * 100),
-    200
-  );
+  const ratio = Math.min(spentCents / budget.amount_limit, 1);
+  const percentage = Math.round((spentCents / budget.amount_limit) * 100);
+  const isOver = spentCents > budget.amount_limit;
+  const isNear = percentage >= (budget.notify_threshold || 0.8) * 100;
 
-  // Calendar Day Calculation (Assuming current month)
-  const now = new Date();
-  const currentDay = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const daysRemaining = Math.max(1, daysInMonth - currentDay);
-  const todayMarkerPercent = Math.min(100, Math.max(0, (currentDay / daysInMonth) * 100));
-
-  // Daily pace projection
-  const dailyAllowanceCents = isOverspent ? 0 : Math.round(remainingCents / daysRemaining);
+  const barColor = isOver ? colors.danger : isNear ? colors.warning : colors.accent;
 
   return (
-    <div
-      className={`relative p-5 sm:p-6 bg-gradient-to-br from-surface to-surface-subtle border border-border rounded-2xl sm:rounded-3xl shadow-card transition-all ${className}`}
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+        },
+      ]}
     >
-      {/* Header: Title and History Action */}
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-display text-lg sm:text-xl font-bold text-text">
-          {budget.name}
-        </h3>
-        {onHistoryClick && (
-          <button
-            type="button"
-            onClick={onHistoryClick}
-            className="w-8 h-8 rounded-full bg-surface-subtle hover:bg-border/60 flex items-center justify-center text-text-muted hover:text-text transition-colors"
-            title="View budget cycle history"
-            aria-label="View budget cycle history"
-          >
-            <History size={16} />
-          </button>
-        )}
-      </div>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={[styles.budgetName, { color: colors.text }]}>{budget.name}</Text>
+          <Text style={[styles.budgetPeriod, { color: colors.textMuted }]}>
+            {budget.period_type.toUpperCase()} CAP
+          </Text>
+        </View>
 
-      {/* Subheader: Amount Remaining / Overspent */}
-      <div className="mb-4">
-        {isOverspent ? (
-          <div className="flex items-center gap-2 text-danger">
-            <AlertTriangle size={18} />
-            <span className="font-display text-xl sm:text-2xl font-extrabold">
-              {formatCurrency(Math.abs(remainingCents))} overspent
-            </span>
-            <span className="text-xs text-text-muted">
-              of {formatCurrency(budget.amount_limit)}
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-xl sm:text-2xl font-extrabold text-text">
-              {formatCurrency(remainingCents)} left
-            </span>
-            <span className="text-xs sm:text-sm text-text-muted">
-              of {formatCurrency(budget.amount_limit)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Progress Bar Container with Today Marker */}
-      <div className="relative pt-6 pb-2">
-        {/* Floating "Today" Badge */}
-        <div
-          className="absolute -top-1 transform -translate-x-1/2 flex flex-col items-center pointer-events-none"
-          style={{ left: `${todayMarkerPercent}%` }}
+        <View
+          style={[
+            styles.badge,
+            {
+              backgroundColor: isOver
+                ? colors.dangerLight
+                : isNear
+                ? colors.warningLight
+                : colors.accentLight,
+            },
+          ]}
         >
-          <span className="bg-text text-bg text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-            Today
-          </span>
-          <div className="w-0.5 h-3 bg-text/80 mt-0.5" />
-        </div>
+          {isOver || isNear ? (
+            <AlertTriangle size={12} color={barColor} />
+          ) : (
+            <CheckCircle size={12} color={barColor} />
+          )}
+          <Text style={[styles.badgeText, { color: barColor }]}>
+            {isOver ? 'Exceeded' : isNear ? 'Warning' : 'On Track'}
+          </Text>
+        </View>
+      </View>
 
-        {/* The Track */}
-        <div className="relative w-full h-3.5 bg-border rounded-full overflow-hidden">
-          {/* The Fill Bar */}
-          <div
-            className={`h-full rounded-full transition-all duration-500 ease-out flex items-center justify-end pr-2 ${
-              isOverspent
-                ? 'bg-danger'
-                : spendPercentage >= budget.notify_threshold * 100
-                ? 'bg-warning'
-                : 'bg-accent'
-            }`}
-            style={{ width: `${Math.min(spendPercentage, 100)}%` }}
-          />
-        </div>
+      {/* Progress Bar */}
+      <View style={[styles.barBg, { backgroundColor: colors.surfaceSubtle }]}>
+        <View
+          style={[
+            styles.barFill,
+            {
+              width: `${Math.min(percentage, 100)}%`,
+              backgroundColor: barColor,
+            },
+          ]}
+        />
+      </View>
 
-        {/* Start / Percentage / End Date Row */}
-        <div className="flex items-center justify-between text-2xs text-text-muted mt-2 font-medium">
-          <span>{budget.start_date || 'Day 1'}</span>
-          <span className="font-bold text-text">{spendPercentage}%</span>
-          <span>{budget.end_date || `Day ${daysInMonth}`}</span>
-        </div>
-      </div>
+      <View style={styles.footerRow}>
+        <Text style={[styles.spentText, { color: colors.text }]}>
+          {formatCurrency(spentCents)}{' '}
+          <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '500' }}>
+            / {formatCurrency(budget.amount_limit)}
+          </Text>
+        </Text>
 
-      {/* Pace Guidance Text */}
-      <div className="mt-3 text-xs text-text-muted flex items-center gap-1.5 border-t border-border/40 pt-3">
-        {isOverspent ? (
-          <span className="text-danger font-medium">
-            Over threshold by {formatCurrency(Math.abs(remainingCents))} this cycle.
-          </span>
-        ) : (
-          <>
-            <CheckCircle2 size={14} className="text-accent flex-shrink-0" />
-            <span>
-              You can keep spending{' '}
-              <strong className="text-text font-semibold">
-                {formatCurrency(dailyAllowanceCents)}/day
-              </strong>{' '}
-              for {daysRemaining} more days
-            </span>
-          </>
-        )}
-      </div>
-    </div>
+        <Text style={[styles.percentText, { color: barColor }]}>{percentage}%</Text>
+      </View>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  card: {
+    padding: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  budgetName: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  budgetPeriod: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
+    letterSpacing: 0.5,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  barBg: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  spentText: {
+    fontSize: 14,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  percentText: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+});

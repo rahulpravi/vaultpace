@@ -1,83 +1,38 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: ['class', '[data-theme="dark"]'],
   content: [
-    './src/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './App.{js,jsx,ts,tsx}',
+    './src/**/*.{js,jsx,ts,tsx}',
   ],
   theme: {
     extend: {
       colors: {
-        bg: 'var(--bg)',
-        surface: {
-          DEFAULT: 'var(--surface)',
-          subtle: 'var(--surface-subtle)',
+        brand: {
+          50: '#ecfdf5',
+          100: '#d1fae5',
+          200: '#a7f3d0',
+          300: '#6ee7b7',
+          400: '#34d399',
+          500: '#10b981',
+          600: '#059669',
+          700: '#047857',
+          800: '#065f46',
+          900: '#064e3b',
         },
-        border: {
-          DEFAULT: 'var(--border)',
-          input: 'var(--border-input)',
+        dark: {
+          bg: '#0B0F17',
+          surface: '#111827',
+          card: '#1F2937',
+          border: '#374151',
+          muted: '#9CA3AF',
         },
-        text: {
-          DEFAULT: 'var(--text)',
-          muted: 'var(--text-muted)',
+        light: {
+          bg: '#F8FAFC',
+          surface: '#FFFFFF',
+          card: '#F1F5F9',
+          border: '#E2E8F0',
+          muted: '#64748B',
         },
-        accent: {
-          DEFAULT: 'var(--accent)',
-          hover: 'var(--accent-hover)',
-          light: 'var(--accent-light)',
-        },
-        'on-accent': 'var(--on-accent)',
-        danger: {
-          DEFAULT: 'var(--danger)',
-          light: 'var(--danger-light)',
-        },
-        success: {
-          DEFAULT: 'var(--success)',
-          light: 'var(--success-light)',
-        },
-        warning: {
-          DEFAULT: 'var(--warning)',
-          light: 'var(--warning-light)',
-        },
-      },
-      fontFamily: {
-        sans: ['var(--font-sans)'],
-        display: ['var(--font-display)'],
-        mono: ['var(--font-mono)'],
-      },
-      fontSize: {
-        '2xs': ['var(--text-2xs)', { lineHeight: '14px' }],
-        xs: ['var(--text-xs)', { lineHeight: '16px' }],
-        sm: ['var(--text-sm)', { lineHeight: '20px' }],
-        base: ['var(--text-base)', { lineHeight: '24px' }],
-        md: ['var(--text-md)', { lineHeight: '26px' }],
-        lg: ['var(--text-lg)', { lineHeight: '28px' }],
-        xl: ['var(--text-xl)', { lineHeight: '32px' }],
-        '2xl': ['var(--text-2xl)', { lineHeight: '36px' }],
-        display: ['var(--text-display)', { lineHeight: '48px' }],
-      },
-      borderRadius: {
-        xs: 'var(--radius-xs)',
-        sm: 'var(--radius-sm)',
-        md: 'var(--radius-md)',
-        lg: 'var(--radius-lg)',
-        xl: 'var(--radius-xl)',
-        '2xl': 'var(--radius-2xl)',
-        pill: 'var(--radius-pill)',
-      },
-      boxShadow: {
-        card: 'var(--shadow-card)',
-        elevated: 'var(--shadow-elevated)',
-        popover: 'var(--shadow-popover)',
-      },
-      transitionDuration: {
-        fast: 'var(--motion-fast)',
-        base: 'var(--motion-base)',
-        spring: 'var(--motion-spring)',
-      },
-      transitionTimingFunction: {
-        smooth: 'var(--motion-ease)',
       },
     },
   },
