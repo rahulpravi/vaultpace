@@ -1,0 +1,71 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build & Package Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle Wrapper Executable
+        run: |
+          cd android
+          chmod +x gradlew || true
+
+      - name: Build Debug APK with Gradle
+        run: |
+          cd android
+          gradle wrapper
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Copy & Rename APK
+        run: |
+          mkdir -p build-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk build-output/VaultPace-v1.0.0-debug.apk
+
+      - name: Upload APK as GitHub Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VaultPace-Android-APK
+          path: build-output/VaultPace-v1.0.0-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release (on tag or main dispatch)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: "VaultPace v1.0.0 Android Release"
+          body: |
+            ## VaultPace v1.0.0 (Android APK)
+            
+            - **Privacy-first**: Zero bank logins, zero telemetry, 100% offline local storage.
+            - **Burn rate pacing**: Real-time "Today" marker on monthly and weekly budgets.
+            - **Multi-currency**: Complete support for INR (₹), USD, EUR, GBP, CAD, AUD, JPY.
+            - **3-Click quick logging**: Smart increment chips.
+            
+            ### Installation:
+            1. Download `VaultPace-v1.0.0-debug.apk` to your Android device.
+            2. Tap the downloaded file to install (allow "Install from Unknown Sources" if prompted).
+          files: build-output/VaultPace-v1.0.0-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
