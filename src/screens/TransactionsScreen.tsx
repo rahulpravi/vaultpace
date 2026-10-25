@@ -15,12 +15,13 @@ import { TransactionRow } from '../components/domain/TransactionRow';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
 import { BottomTabProps } from '../navigation/types';
 import * as Haptics from 'expo-haptics';
-import { Search, X, Calendar, Plus, Filter } from 'lucide-react-native';
+import { Search, X, Calendar, Plus, Filter, FileText } from 'lucide-react-native';
+import { exportTransactionsToPdf } from '../utils/exportPdf';
 
 export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const { transactions, categories, accounts, deleteTransaction } = useStore();
+  const { transactions, categories, accounts, deleteTransaction, settings, budgets, getTotalNetWorthCents } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccId, setSelectedAccId] = useState<string | null>(null);
@@ -94,15 +95,37 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setIsAddModalOpen(true);
-          }}
-          style={[styles.addBtn, { backgroundColor: colors.accent }]}
-        >
-          <Plus size={18} color={colors.onAccent} strokeWidth={2.5} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={async () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              await exportTransactionsToPdf({
+                accounts,
+                categories,
+                budgets,
+                transactions,
+                settings,
+                totalNetWorth: getTotalNetWorthCents(),
+              });
+            }}
+            style={[
+              styles.addBtn,
+              { backgroundColor: colors.surfaceSubtle, borderWidth: 1, borderColor: colors.border },
+            ]}
+          >
+            <FileText size={18} color={colors.accent} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsAddModalOpen(true);
+            }}
+            style={[styles.addBtn, { backgroundColor: colors.accent }]}
+          >
+            <Plus size={18} color={colors.onAccent} strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -152,7 +175,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 { color: selectedAccId === null ? colors.onAccent : colors.text },
               ]}
             >
-              All Pools
+              All Wallets
             </Text>
           </TouchableOpacity>
 

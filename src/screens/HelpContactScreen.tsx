@@ -46,9 +46,9 @@ const FAQS: FAQItem[] = [
   },
   {
     id: 'faq-2',
-    question: 'How do multiple account pools and transfers work?',
+    question: 'How do multiple wallets/accounts and transfers work?',
     answer:
-      'You can establish distinct pools for Cash, Bank Accounts, Savings Vaults, and Credit Cards with distinct currencies (USD, EUR, INR, GBP, etc.). When you record a Transfer, VaultPace automatically credits the destination pool and debits the origin pool simultaneously.',
+      'You can establish distinct wallets for Cash, Bank Accounts, Savings Vaults, and Credit Cards with distinct currencies (USD, EUR, INR, GBP, etc.). When you record a Transfer, VaultPace automatically credits the destination wallet and debits the origin wallet simultaneously.',
   },
   {
     id: 'faq-3',

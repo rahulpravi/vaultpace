@@ -23,7 +23,7 @@ interface AddTransactionModalProps {
 
 export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ visible, onClose }) => {
   const { colors } = useAppTheme();
-  const { accounts, categories, addTransaction } = useStore();
+  const { accounts, categories, addTransaction, settings } = useStore();
 
   const [type, setType] = useState<TransactionType>('expense');
   const [amountStr, setAmountStr] = useState('');
@@ -34,6 +34,21 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ visibl
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+  const activeCurrency = selectedAccount?.currency || settings?.default_currency || 'INR';
+  const currencySymbol =
+    activeCurrency === 'INR' || activeCurrency === 'IND'
+      ? '₹'
+      : activeCurrency === 'USD'
+      ? '$'
+      : activeCurrency === 'EUR'
+      ? '€'
+      : activeCurrency === 'GBP'
+      ? '£'
+      : activeCurrency === 'JPY'
+      ? '¥'
+      : activeCurrency;
 
   const filteredCategories = categories.filter((c) =>
     type === 'income' ? c.category_type === 'income' : c.category_type === 'expense'
@@ -189,7 +204,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ visibl
 
             {/* Big Amount Input */}
             <View style={styles.amountWrap}>
-              <Text style={[styles.currencyPrefix, { color: colors.accent }]}>$</Text>
+              <Text style={[styles.currencyPrefix, { color: colors.accent }]}>{currencySymbol}</Text>
               <TextInput
                 value={amountStr}
                 onChangeText={(val) => {

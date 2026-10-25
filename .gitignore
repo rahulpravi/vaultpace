@@ -34,10 +34,18 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Expo
+.expo/
+
+# Native folders (managed EAS prebuild workflow)
+/android
+/ios
+
 # Android
 .gradle/
 **/android/.gradle/
 **/android/build/
 **/android/app/build/
 **/android/local.properties
+
 

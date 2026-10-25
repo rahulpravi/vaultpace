@@ -17,7 +17,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import {
   LayoutDashboard,
   Receipt,
-  PieChart,
+  BarChart3,
   Wallet,
   Settings,
 } from 'lucide-react-native';
@@ -88,9 +88,9 @@ export const BottomTabNavigator: React.FC = () => {
         name="BudgetsTab"
         component={BudgetsScreen}
         options={{
-          tabBarLabel: 'Budgets',
+          tabBarLabel: 'Report',
           tabBarIcon: ({ color, size, focused }) => (
-            <PieChart size={size - 2} color={color} strokeWidth={focused ? 2.5 : 2} />
+            <BarChart3 size={size - 2} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
         listeners={{
@@ -102,7 +102,7 @@ export const BottomTabNavigator: React.FC = () => {
         name="AccountsTab"
         component={AccountsScreen}
         options={{
-          tabBarLabel: 'Pools',
+          tabBarLabel: 'Wallets',
           tabBarIcon: ({ color, size, focused }) => (
             <Wallet size={size - 2} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),

@@ -84,18 +84,28 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
         </View>
 
         <View style={styles.info}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+          <Text
+            style={[styles.title, { color: colors.text }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {transaction.notes || category?.name || (isTransfer ? 'Account Transfer' : 'Expense')}
           </Text>
 
-          <View style={styles.subRow}>
+          <Text
+            style={styles.subTitle}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {category && (
-              <Text style={[styles.metaText, { color: colors.accent }]}>{category.name} • </Text>
+              <Text style={[styles.categoryBadgeText, { color: colors.accent }]}>
+                {category.name} •{' '}
+              </Text>
             )}
             <Text style={[styles.metaText, { color: colors.textMuted }]}>
-              {account?.name || 'Account'} • {transaction.transaction_date}
+              {account?.name || 'Wallet'} • {transaction.transaction_date}
             </Text>
-          </View>
+          </Text>
         </View>
       </View>
 
@@ -107,6 +117,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
               color: isIncome ? colors.success : isTransfer ? colors.text : colors.danger,
             },
           ]}
+          numberOfLines={1}
         >
           {isIncome ? '+' : isTransfer ? '' : '-'}
           {formatCurrency(transaction.amount, account?.currency)}
@@ -141,7 +152,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 10,
+    marginRight: 16,
   },
   iconWrap: {
     width: 42,
@@ -153,25 +164,29 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+    justifyContent: 'center',
   },
   title: {
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: -0.2,
   },
-  subRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  subTitle: {
     marginTop: 3,
+  },
+  categoryBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   metaText: {
     fontSize: 11,
     fontWeight: '500',
   },
   right: {
-    alignItems: 'flex-end',
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 10,
   },
   amount: {
     fontSize: 14,

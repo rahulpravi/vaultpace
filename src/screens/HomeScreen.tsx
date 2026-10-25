@@ -34,6 +34,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
     categories,
     budgets,
     transactions,
+    settings,
     getTotalNetWorthCents,
     deleteTransaction,
   } = useStore();
@@ -109,7 +110,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             TOTAL NET WORTH
           </Text>
           <Text style={[styles.netWorthAmount, { color: colors.text }]}>
-            {formatCurrency(totalNetWorth)}
+            {formatCurrency(totalNetWorth, settings.default_currency)}
           </Text>
         </View>
 
@@ -129,7 +130,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View>
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>INCOME</Text>
               <Text style={[styles.metricValue, { color: colors.success }]}>
-                +{formatCurrency(monthlyIncome)}
+                +{formatCurrency(monthlyIncome, settings.default_currency)}
               </Text>
             </View>
           </View>
@@ -143,17 +144,17 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View>
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>SPENT</Text>
               <Text style={[styles.metricValue, { color: colors.danger }]}>
-                -{formatCurrency(monthlyExpense)}
+                -{formatCurrency(monthlyExpense, settings.default_currency)}
               </Text>
             </View>
           </View>
         </View>
 
         {/* =========================================================================
-            Financial Pools (Accounts Horizontal Carousel)
+            Wallets & Accounts (Accounts Horizontal Carousel)
             ========================================================================= */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Financial Pools</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Wallets & Accounts</Text>
           <TouchableOpacity
             onPress={() => navigation.navigate('AccountsTab')}
             style={styles.seeAllBtn}
@@ -163,8 +164,8 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           </TouchableOpacity>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.poolsScroll}>
-          {/* 'All' Pool Option */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.walletsScroll}>
+          {/* 'All' Wallets Option */}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => {
@@ -172,7 +173,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               setSelectedAccountId(null);
             }}
             style={[
-              styles.allPoolCard,
+              styles.allWalletCard,
               {
                 backgroundColor: colors.surface,
                 borderColor: selectedAccountId === null ? colors.accent : colors.border,
@@ -180,12 +181,12 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               },
             ]}
           >
-            <View style={[styles.allPoolIcon, { backgroundColor: colors.accentLight }]}>
+            <View style={[styles.allWalletIcon, { backgroundColor: colors.accentLight }]}>
               <TrendingUp size={18} color={colors.accent} />
             </View>
-            <Text style={[styles.allPoolTitle, { color: colors.text }]}>Consolidated</Text>
-            <Text style={[styles.allPoolSubtitle, { color: colors.textMuted }]}>
-              All Accounts ({accounts.length})
+            <Text style={[styles.allWalletTitle, { color: colors.text }]}>Consolidated</Text>
+            <Text style={[styles.allWalletSubtitle, { color: colors.textMuted }]}>
+              All Wallets ({accounts.length})
             </Text>
           </TouchableOpacity>
 
@@ -203,17 +204,17 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         </ScrollView>
 
         {/* =========================================================================
-            Active Budget Pace
+            Spending Report (Budget Pace)
             ========================================================================= */}
         {activeBudget && (
           <View style={styles.budgetSection}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Active Budget Pace</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending Report</Text>
               <TouchableOpacity
                 onPress={() => navigation.navigate('BudgetsTab')}
                 style={styles.seeAllBtn}
               >
-                <Text style={[styles.seeAllText, { color: colors.accent }]}>View All</Text>
+                <Text style={[styles.seeAllText, { color: colors.accent }]}>View Report</Text>
                 <ArrowRight size={13} color={colors.accent} />
               </TouchableOpacity>
             </View>
@@ -246,7 +247,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             ]}
           >
             <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-              No recorded movements for this pool.
+              No recorded movements for this wallet.
             </Text>
           </View>
         ) : (
@@ -416,13 +417,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  poolsScroll: {
+  walletsScroll: {
     flexDirection: 'row',
     marginBottom: 20,
     marginHorizontal: -20,
     paddingHorizontal: 20,
   },
-  allPoolCard: {
+  allWalletCard: {
     width: 140,
     padding: 16,
     borderRadius: 22,
@@ -430,18 +431,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 145,
   },
-  allPoolIcon: {
+  allWalletIcon: {
     width: 36,
     height: 36,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  allPoolTitle: {
+  allWalletTitle: {
     fontSize: 14,
     fontWeight: '700',
   },
-  allPoolSubtitle: {
+  allWalletSubtitle: {
     fontSize: 11,
     fontWeight: '500',
   },

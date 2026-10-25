@@ -75,6 +75,8 @@ export interface UserSettings {
   default_currency: string;
   first_day_of_week: number; // 0=Sunday, 1=Monday
   biometrics_enabled: boolean;
+  pin_lock_enabled: boolean;
+  security_pin?: string;
   last_backup_date?: string;
   notifications_enabled: boolean;
   haptics_enabled: boolean;

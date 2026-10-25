@@ -91,19 +91,18 @@ Ran `python .agents/skills/replica-design/contrast.py replica/design/tokens.json
 
 ## Step 4: Logo Brief
 
-- **Core Concept in One Line**: A minimalist geometric shield fused with an upward dynamic pace vector, symbolizing personal financial defense and forward momentum.
-- **Mark Type**: Monogram symbol + Wordmark (`VaultPace`).
+- **Core Concept in One Line**: A stylized geometric monogram 'V' with neon cyan accents framing a golden vault door and an upward gold growth vector, symbolizing financial security and wealth pace momentum.
+- **Mark Type**: Monogram symbol ('V') + Vault Door + Pace Arrow.
 - **Form & Geometry**:
-  - The outer contour forms a subtle chamfered shield (the Vault).
-  - Inside the shield, a diagonal 45-degree laser-sharp chevron points up and right, evoking budget pace tracking.
-  - Zero resemblance to Cashew's rounded coin with pie chart wedges.
+  - The outer contour forms a sharp stylized 'V' in electric cyan / aqua blue.
+  - Intersecting the center is a gold-trimmed vault doorway and an upward financial growth pace arrow pointing up and right.
+  - Deep slate navy background (`#1A222F`) for maximum contrast and sleek modern financial aesthetic.
 - **Scalability**:
-  - Tested at 16×16px (favicon): Chevron remains crisp without blur.
-  - Rendered at 1024×1024px: High-density app icon with no alpha transparency (iOS App Store compliant).
+  - Tested at 16×16px (favicon): Dynamic 'V' and arrow remain distinct and crisp.
+  - Rendered at 1024×1024px: High-density app icon with solid `#1A222F` background (iOS App Store & Google Play compliant).
 - **Deliverables Required**:
-  1. `icon-1024.png` (Square, no transparency, solid `#0B1110` background).
-  2. `favicon.ico` + `icon.svg` (Scalable vector).
-  3. `og-card-1200x630.png` (Social card featuring dashboard preview).
+  1. `icon.png`, `adaptive-icon.png`, `logo.png`, `splash.png`, `favicon.png` (1024×1024 PNG, solid `#1A222F` background).
+
 
 ---
 

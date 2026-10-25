@@ -3,30 +3,68 @@ import {
   View,
   Text,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency } from '../store/useStore';
+import { useStore, formatCurrency, parseAmountToCents } from '../store/useStore';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
 import { BottomTabProps } from '../navigation/types';
+import { Category } from '../types';
 import * as Haptics from 'expo-haptics';
-import { Target, Plus, AlertCircle } from 'lucide-react-native';
+import { Target, Pencil, X, Check, BarChart3, TrendingUp, AlertTriangle } from 'lucide-react-native';
 
 export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const { budgets, categories, transactions } = useStore();
+  const {
+    budgets,
+    categories,
+    transactions,
+    settings,
+    categoryLimits,
+    setCategoryLimit,
+  } = useStore();
 
-  // Category allowance limits matching the original app schema
-  const categoryLimits: Record<string, number> = {
-    'cat-1': 25000, // Groceries $250.00
-    'cat-2': 3000,  // Dining $30.00
-    'cat-3': 12500, // Shopping $125.00
-    'cat-4': 5000,  // Transit $50.00
-    'cat-5': 6000,  // Entertainment $60.00
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [newLimitStr, setNewLimitStr] = useState('');
+
+  const currencySymbol =
+    settings.default_currency === 'INR' || settings.default_currency === 'IND'
+      ? '₹'
+      : settings.default_currency === 'USD'
+      ? '$'
+      : settings.default_currency === 'EUR'
+      ? '€'
+      : settings.default_currency === 'GBP'
+      ? '£'
+      : settings.default_currency;
+
+  const handleOpenEdit = (cat: Category, currentLimitCents: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditingCategory(cat);
+    const standardAmount = (currentLimitCents / 100).toFixed(0);
+    setNewLimitStr(standardAmount === '0' ? '' : standardAmount);
+  };
+
+  const handleSaveLimit = () => {
+    if (!editingCategory) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const cents = parseAmountToCents(newLimitStr);
+    setCategoryLimit(editingCategory.id, cents);
+    setEditingCategory(null);
+    setNewLimitStr('');
+  };
+
+  const addQuickIncrement = (additionalRupees: number) => {
+    Haptics.selectionAsync();
+    const currentVal = parseFloat(newLimitStr) || 0;
+    setNewLimitStr((currentVal + additionalRupees).toString());
   };
 
   return (
@@ -44,11 +82,16 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
           },
         ]}
       >
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Spending Budgets</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-            Monitor thresholds and pace limits
-          </Text>
+        <View style={styles.headerLeft}>
+          <View style={[styles.reportIconBox, { backgroundColor: colors.accentLight }]}>
+            <BarChart3 size={20} color={colors.accent} />
+          </View>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Spending Report</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
+              Category allowances, thresholds & limit analytics
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -56,12 +99,12 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
       >
-        {/* Main Budget Progress Cards */}
+        {/* Main Spending Progress Cards */}
         {budgets.map((b) => (
           <BudgetProgressCard key={b.id} budget={b} transactions={transactions} />
         ))}
 
-        {/* Category Allowances */}
+        {/* Category Allowances Header */}
         <View style={styles.sectionHeader}>
           <View style={styles.titleWithIcon}>
             <Target size={16} color={colors.accent} />
@@ -69,18 +112,22 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
               Category Allowances
             </Text>
           </View>
-          <Text style={[styles.cycleText, { color: colors.textMuted }]}>Current Cycle</Text>
+          <Text style={[styles.cycleText, { color: colors.textMuted }]}>Monthly Caps</Text>
         </View>
 
+        {/* Category Cards with Dynamic Limit Editing */}
         <View style={styles.categoryList}>
           {categories
             .filter((c) => c.category_type === 'expense')
             .map((cat) => {
               const catTx = transactions.filter((t) => t.category_id === cat.id);
               const spent = catTx.reduce((acc, t) => acc + t.amount, 0);
-              const limit = categoryLimits[cat.id] || 10000;
-              const percentage = Math.round((spent / limit) * 100);
-              const isOver = spent > limit;
+              const limit =
+                categoryLimits?.[cat.id] !== undefined
+                  ? categoryLimits[cat.id]
+                  : 500000; // fallback ₹5,000
+              const percentage = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+              const isOver = limit > 0 && spent > limit;
               const barColor = isOver ? colors.danger : colors.accent;
 
               return (
@@ -97,20 +144,38 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
                       <Text style={[styles.catName, { color: colors.text }]}>{cat.name}</Text>
                     </View>
 
-                    <Text style={[styles.catLimit, { color: colors.text }]}>
-                      {formatCurrency(spent)}{' '}
-                      <Text style={{ color: colors.textMuted, fontSize: 11 }}>
-                        / {formatCurrency(limit)}
+                    <View style={styles.catRightActions}>
+                      <Text style={[styles.catLimit, { color: colors.text }]}>
+                        {formatCurrency(spent, settings.default_currency)}{' '}
+                        <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                          / {limit > 0 ? formatCurrency(limit, settings.default_currency) : 'No Cap'}
+                        </Text>
                       </Text>
-                    </Text>
+
+                      {/* Edit Limit Button */}
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => handleOpenEdit(cat, limit)}
+                        style={[
+                          styles.editLimitBtn,
+                          { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                        ]}
+                      >
+                        <Pencil size={12} color={colors.accent} />
+                        <Text style={[styles.editLimitBtnText, { color: colors.accent }]}>
+                          Edit
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
+                  {/* Progress Bar */}
                   <View style={[styles.barBg, { backgroundColor: colors.surfaceSubtle }]}>
                     <View
                       style={[
                         styles.barFill,
                         {
-                          width: `${Math.min(percentage, 100)}%`,
+                          width: `${limit > 0 ? Math.min(percentage, 100) : 0}%`,
                           backgroundColor: barColor,
                         },
                       ]}
@@ -127,7 +192,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
                         { color: isOver ? colors.danger : colors.accent },
                       ]}
                     >
-                      {percentage}%
+                      {limit > 0 ? `${percentage}%` : 'Uncapped'}
                     </Text>
                   </View>
                 </View>
@@ -135,6 +200,116 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
             })}
         </View>
       </ScrollView>
+
+      {/* Edit Category Limit Modal */}
+      <Modal
+        visible={editingCategory !== null}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setEditingCategory(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            {/* Modal Header */}
+            <View style={[styles.modalHeaderRow, { borderBottomColor: colors.border }]}>
+              <View style={styles.modalTitleRow}>
+                <View
+                  style={[
+                    styles.catColorDotLarge,
+                    { backgroundColor: editingCategory?.color || colors.accent },
+                  ]}
+                />
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  {editingCategory?.name} Limit
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setEditingCategory(null)}
+                style={[styles.closeBtn, { backgroundColor: colors.surfaceSubtle }]}
+              >
+                <X size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Instruction */}
+            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
+              Adjust monthly spending ceiling for {editingCategory?.name}. VaultPace will track and
+              warn you as you approach this cap.
+            </Text>
+
+            {/* Amount Input with Currency Prefix */}
+            <View
+              style={[
+                styles.inputWrapper,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.currencyPrefix, { color: colors.accent }]}>
+                {currencySymbol}
+              </Text>
+              <TextInput
+                value={newLimitStr}
+                onChangeText={setNewLimitStr}
+                placeholder="0"
+                placeholderTextColor={colors.textMuted + '80'}
+                keyboardType="numeric"
+                style={[styles.limitInput, { color: colors.text }]}
+                autoFocus
+              />
+            </View>
+
+            {/* Quick Adjustment Chips */}
+            <Text style={[styles.chipLabel, { color: colors.textMuted }]}>Quick Increments</Text>
+            <View style={styles.chipRow}>
+              <TouchableOpacity
+                onPress={() => addQuickIncrement(1000)}
+                style={[styles.quickChip, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }]}
+              >
+                <Text style={[styles.quickChipText, { color: colors.text }]}>+1,000</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => addQuickIncrement(5000)}
+                style={[styles.quickChip, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }]}
+              >
+                <Text style={[styles.quickChipText, { color: colors.text }]}>+5,000</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => addQuickIncrement(10000)}
+                style={[styles.quickChip, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }]}
+              >
+                <Text style={[styles.quickChipText, { color: colors.text }]}>+10,000</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setNewLimitStr('0')}
+                style={[styles.quickChip, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }]}
+              >
+                <Text style={[styles.quickChipText, { color: colors.danger }]}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.modalActionRow}>
+              <TouchableOpacity
+                onPress={() => setEditingCategory(null)}
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.textMuted }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSaveLimit}
+                style={[styles.saveBtn, { backgroundColor: colors.accent }]}
+              >
+                <Check size={16} color={colors.onAccent} strokeWidth={2.5} />
+                <Text style={[styles.saveBtnText, { color: colors.onAccent }]}>
+                  Save Limit
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -148,6 +323,18 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  reportIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontSize: 22,
     fontWeight: '800',
@@ -159,43 +346,41 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    padding: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    alignItems: 'center',
+    marginTop: 20,
     marginBottom: 12,
   },
   titleWithIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 15,
     fontWeight: '800',
-    letterSpacing: -0.2,
   },
   cycleText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   categoryList: {
-    gap: 10,
+    gap: 12,
   },
   categoryCard: {
-    padding: 14,
+    padding: 16,
     borderRadius: 18,
     borderWidth: 1,
   },
   cardTop: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    alignItems: 'center',
+    marginBottom: 12,
   },
   catLeft: {
     flexDirection: 'row',
@@ -208,35 +393,173 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   catName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
+  },
+  catRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   catLimit: {
     fontSize: 13,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
+  },
+  editLimitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  editLimitBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   barBg: {
-    height: 6,
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   barFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 4,
   },
   cardBottom: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   txCount: {
     fontSize: 11,
     fontWeight: '500',
   },
   pctText: {
-    fontSize: 11,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  modalSheet: {
+    borderRadius: 24,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  catColorDotLarge: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  modalTitle: {
+    fontSize: 17,
     fontWeight: '800',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  currencyPrefix: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginRight: 8,
+  },
+  limitInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  chipLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  quickChip: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  quickChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modalActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  cancelBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  saveBtn: {
+    flex: 2,
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

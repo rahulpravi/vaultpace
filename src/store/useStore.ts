@@ -12,47 +12,36 @@ import {
 export const DEFAULT_ACCOUNTS: Account[] = [
   {
     id: 'acc-1',
-    name: 'Wallet',
+    name: 'Cash Wallet',
     account_type: 'cash',
-    currency: 'USD',
-    initial_balance: 15000, // $150.00
-    current_balance: -4154, // -$41.54 USD
+    currency: 'INR',
+    initial_balance: 0,
+    current_balance: 0,
     color: '#047857',
     icon: 'wallet',
-    transaction_count: 178,
+    transaction_count: 0,
   },
   {
     id: 'acc-2',
-    name: 'Euros Account',
+    name: 'Bank Account',
     account_type: 'bank',
-    currency: 'EUR',
-    initial_balance: 50000,
-    current_balance: -10300, // -€103.00 EUR
+    currency: 'INR',
+    initial_balance: 0,
+    current_balance: 0,
     color: '#0369a1',
     icon: 'landmark',
-    transaction_count: 5,
+    transaction_count: 0,
   },
   {
     id: 'acc-3',
     name: 'Savings Vault',
     account_type: 'savings',
-    currency: 'USD',
-    initial_balance: 385000, // $3,850.00 USD
-    current_balance: 385000,
+    currency: 'INR',
+    initial_balance: 0,
+    current_balance: 0,
     color: '#b45309',
     icon: 'piggy-bank',
-    transaction_count: 12,
-  },
-  {
-    id: 'acc-4',
-    name: 'Rewards Credit',
-    account_type: 'credit',
-    currency: 'USD',
-    initial_balance: 0,
-    current_balance: -24580, // -$245.80 USD
-    color: '#be123c',
-    icon: 'credit-card',
-    transaction_count: 24,
+    transaction_count: 0,
   },
 ];
 
@@ -63,100 +52,40 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-4', name: 'Transit', category_type: 'expense', color: '#b45309', icon: 'car', is_default: true, sort_order: 4 },
   { id: 'cat-5', name: 'Entertainment', category_type: 'expense', color: '#6d28d9', icon: 'film', is_default: true, sort_order: 5 },
   { id: 'cat-6', name: 'Health & Wellness', category_type: 'expense', color: '#0f766e', icon: 'heart-pulse', is_default: true, sort_order: 6 },
-  { id: 'cat-7', name: 'Salary', category_type: 'income', color: '#047857', icon: 'dollar-sign', is_default: true, sort_order: 7 },
-  { id: 'cat-8', name: 'Freelance', category_type: 'income', color: '#1d4ed8', icon: 'briefcase', is_default: true, sort_order: 8 },
+  { id: 'cat-7', name: 'Salary', category_type: 'income', color: '#047857', icon: 'briefcase', is_default: true, sort_order: 7 },
+  { id: 'cat-8', name: 'Freelance & Bonus', category_type: 'income', color: '#1d4ed8', icon: 'briefcase', is_default: true, sort_order: 8 },
 ];
 
 export const DEFAULT_BUDGETS: Budget[] = [
   {
     id: 'b-1',
     name: 'Monthly Spending',
-    amount_limit: 50000, // $500.00
+    amount_limit: 2500000, // ₹25,000.00
     period_type: 'monthly',
-    start_date: '2026-10-01',
-    end_date: '2026-10-31',
+    start_date: new Date().toISOString().slice(0, 7) + '-01',
     notify_threshold: 0.8,
-  },
-  {
-    id: 'b-2',
-    name: 'Groceries Cap',
-    amount_limit: 25000, // $250.00
-    period_type: 'monthly',
-    start_date: '2026-10-01',
-    category_ids: ['cat-1'],
-    notify_threshold: 0.85,
   },
 ];
 
-export const DEFAULT_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'tx-1',
-    account_id: 'acc-1',
-    category_id: 'cat-1',
-    amount: 17419, // $174.19
-    transaction_type: 'expense',
-    transaction_date: '2026-10-23',
-    transaction_time: '14:20:00',
-    notes: 'Weekly fresh market produce & supplies',
-  },
-  {
-    id: 'tx-2',
-    account_id: 'acc-1',
-    category_id: 'cat-3',
-    amount: 11518, // $115.18
-    transaction_type: 'expense',
-    transaction_date: '2026-10-22',
-    transaction_time: '18:15:00',
-    notes: 'Home essentials & cookware',
-  },
-  {
-    id: 'tx-3',
-    account_id: 'acc-1',
-    category_id: 'cat-2',
-    amount: 8487, // $84.87
-    transaction_type: 'expense',
-    transaction_date: '2026-10-21',
-    transaction_time: '20:45:00',
-    notes: 'Bistro dinner with friends',
-  },
-  {
-    id: 'tx-4',
-    account_id: 'acc-1',
-    category_id: 'cat-4',
-    amount: 1450, // $14.50
-    transaction_type: 'expense',
-    transaction_date: '2026-10-20',
-    transaction_time: '09:10:00',
-    notes: 'City rail morning transit ticket',
-  },
-  {
-    id: 'tx-5',
-    account_id: 'acc-1',
-    category_id: 'cat-5',
-    amount: 2500, // $25.00
-    transaction_type: 'expense',
-    transaction_date: '2026-10-18',
-    transaction_time: '19:00:00',
-    notes: 'Cinema tickets',
-  },
-  {
-    id: 'tx-6',
-    account_id: 'acc-1',
-    category_id: 'cat-7',
-    amount: 320000, // +$3,200.00
-    transaction_type: 'income',
-    transaction_date: '2026-10-01',
-    transaction_time: '08:00:00',
-    notes: 'Monthly direct payroll deposit',
-  },
-];
+export const DEFAULT_CATEGORY_LIMITS: Record<string, number> = {
+  'cat-1': 2000000, // Groceries ₹20,000.00
+  'cat-2': 600000,  // Dining ₹6,000.00
+  'cat-3': 1000000, // Shopping ₹10,000.00
+  'cat-4': 500000,  // Transit ₹5,000.00
+  'cat-5': 500000,  // Entertainment ₹5,000.00
+  'cat-6': 500000,  // Health & Wellness ₹5,000.00
+};
+
+export const DEFAULT_TRANSACTIONS: Transaction[] = [];
 
 export const DEFAULT_SETTINGS: UserSettings = {
   theme_mode: 'light',
   accent_color: 'emerald',
-  default_currency: 'USD',
+  default_currency: 'INR',
   first_day_of_week: 1, // Monday
   biometrics_enabled: false,
+  pin_lock_enabled: false,
+  security_pin: undefined,
   notifications_enabled: true,
   haptics_enabled: true,
 };
@@ -225,6 +154,16 @@ interface TrackerStore {
   updateBudget: (id: string, updates: Partial<Budget>) => void;
   deleteBudget: (id: string) => void;
 
+  // Category Limits
+  categoryLimits: Record<string, number>;
+  setCategoryLimit: (categoryId: string, limitCents: number) => void;
+
+  // Lock / Security State
+  isAppLocked: boolean;
+  setIsAppLocked: (locked: boolean) => void;
+  setSecurityPin: (pin: string | null) => void;
+  resetSecurityPin: () => void;
+
   updateSettings: (settings: Partial<UserSettings>) => void;
   resetToDefaults: () => void;
 
@@ -240,6 +179,42 @@ export const useStore = create<TrackerStore>()(
       budgets: DEFAULT_BUDGETS,
       transactions: DEFAULT_TRANSACTIONS,
       settings: DEFAULT_SETTINGS,
+      categoryLimits: DEFAULT_CATEGORY_LIMITS,
+      isAppLocked: false,
+
+      setCategoryLimit: (categoryId: string, limitCents: number) => {
+        set((state) => ({
+          categoryLimits: {
+            ...(state.categoryLimits || DEFAULT_CATEGORY_LIMITS),
+            [categoryId]: limitCents,
+          },
+        }));
+      },
+
+      setIsAppLocked: (locked: boolean) => {
+        set({ isAppLocked: locked });
+      },
+
+      setSecurityPin: (pin: string | null) => {
+        set((state) => ({
+          settings: {
+            ...state.settings,
+            security_pin: pin || undefined,
+            pin_lock_enabled: Boolean(pin),
+          },
+        }));
+      },
+
+      resetSecurityPin: () => {
+        set((state) => ({
+          isAppLocked: false,
+          settings: {
+            ...state.settings,
+            security_pin: undefined,
+            pin_lock_enabled: false,
+          },
+        }));
+      },
 
       addTransaction: (tx) => {
         const newTx: Transaction = {
@@ -368,11 +343,13 @@ export const useStore = create<TrackerStore>()(
 
       resetToDefaults: () => {
         set({
-          accounts: calculateBalances(DEFAULT_ACCOUNTS, DEFAULT_TRANSACTIONS),
+          accounts: calculateBalances(DEFAULT_ACCOUNTS, []),
           categories: DEFAULT_CATEGORIES,
           budgets: DEFAULT_BUDGETS,
-          transactions: DEFAULT_TRANSACTIONS,
+          transactions: [],
           settings: DEFAULT_SETTINGS,
+          categoryLimits: DEFAULT_CATEGORY_LIMITS,
+          isAppLocked: false,
         });
       },
 
@@ -381,8 +358,30 @@ export const useStore = create<TrackerStore>()(
       },
     }),
     {
-      name: 'vaultpace_mobile_store_v1',
+      name: 'vaultpace_mobile_store_v2',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        accounts: state.accounts,
+        categories: state.categories,
+        budgets: state.budgets,
+        transactions: state.transactions,
+        settings: state.settings,
+        categoryLimits: state.categoryLimits,
+      }),
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2 || !persistedState) {
+          return {
+            accounts: DEFAULT_ACCOUNTS,
+            categories: DEFAULT_CATEGORIES,
+            budgets: DEFAULT_BUDGETS,
+            transactions: [],
+            settings: DEFAULT_SETTINGS,
+            categoryLimits: DEFAULT_CATEGORY_LIMITS,
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );
@@ -391,15 +390,15 @@ export function formatCurrency(cents: number, currency?: string): string {
   const isNegative = cents < 0;
   const absDollars = Math.abs(cents) / 100;
   const selectedCurrency = (
-    currency || useStore.getState().settings?.default_currency || 'USD'
+    currency || useStore.getState().settings?.default_currency || 'INR'
   ).toUpperCase();
 
   const symbolMap: Record<string, string> = {
+    INR: '₹',
+    IND: '₹',
     USD: '$',
     EUR: '€',
     GBP: '£',
-    INR: '₹',
-    IND: '₹',
     JPY: '¥',
     CAD: 'CA$',
     AUD: 'A$',
