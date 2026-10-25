@@ -13,6 +13,7 @@ import { useAppTheme } from '../theme/useTheme';
 import { useStore } from '../store/useStore';
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
+import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { BottomTabProps } from '../navigation/types';
 import * as Haptics from 'expo-haptics';
 import { Search, X, Calendar, Plus, Filter, FileText } from 'lucide-react-native';
@@ -27,6 +28,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   const [selectedAccId, setSelectedAccId] = useState<string | null>(null);
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Filtered transactions
   const filtered = useMemo(() => {
@@ -97,16 +99,9 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
-            onPress={async () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              await exportTransactionsToPdf({
-                accounts,
-                categories,
-                budgets,
-                transactions,
-                settings,
-                totalNetWorth: getTotalNetWorthCents(),
-              });
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setIsPinModalOpen(true);
             }}
             style={[
               styles.addBtn,
@@ -308,6 +303,25 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       <AddTransactionModal
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+      />
+
+      {/* Reusable Security PIN Verification Modal */}
+      <PinVerificationModal
+        visible={isPinModalOpen}
+        title="Authorize Ledger Export"
+        subtitle="Enter your 4-digit PIN to generate and download your confidential transaction statement."
+        actionType="primary"
+        onSuccess={async () => {
+          await exportTransactionsToPdf({
+            accounts,
+            categories,
+            budgets,
+            transactions,
+            settings,
+            totalNetWorth: getTotalNetWorthCents(),
+          });
+        }}
+        onClose={() => setIsPinModalOpen(false)}
       />
     </View>
   );

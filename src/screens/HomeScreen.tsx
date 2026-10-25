@@ -23,7 +23,6 @@ import {
   ArrowUpRight,
   Plus,
   ArrowRight,
-  TrendingUp,
 } from 'lucide-react-native';
 
 export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) => {
@@ -165,31 +164,6 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.walletsScroll}>
-          {/* 'All' Wallets Option */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setSelectedAccountId(null);
-            }}
-            style={[
-              styles.allWalletCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: selectedAccountId === null ? colors.accent : colors.border,
-                borderWidth: selectedAccountId === null ? 2 : 1,
-              },
-            ]}
-          >
-            <View style={[styles.allWalletIcon, { backgroundColor: colors.accentLight }]}>
-              <TrendingUp size={18} color={colors.accent} />
-            </View>
-            <Text style={[styles.allWalletTitle, { color: colors.text }]}>Consolidated</Text>
-            <Text style={[styles.allWalletSubtitle, { color: colors.textMuted }]}>
-              All Wallets ({accounts.length})
-            </Text>
-          </TouchableOpacity>
-
           {accounts.map((acc) => (
             <AccountCard
               key={acc.id}
@@ -422,29 +396,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginHorizontal: -20,
     paddingHorizontal: 20,
-  },
-  allWalletCard: {
-    width: 140,
-    padding: 16,
-    borderRadius: 22,
-    marginRight: 12,
-    justifyContent: 'space-between',
-    minHeight: 145,
-  },
-  allWalletIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  allWalletTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  allWalletSubtitle: {
-    fontSize: 11,
-    fontWeight: '500',
   },
   budgetSection: {
     marginBottom: 8,

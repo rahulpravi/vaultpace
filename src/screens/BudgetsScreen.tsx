@@ -7,16 +7,19 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Alert,
   Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { useStore, formatCurrency, parseAmountToCents } from '../store/useStore';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
+import { PinVerificationModal } from '../components/security/PinVerificationModal';
+import { exportTransactionsToPdf } from '../utils/exportPdf';
 import { BottomTabProps } from '../navigation/types';
 import { Category } from '../types';
 import * as Haptics from 'expo-haptics';
-import { Target, Pencil, X, Check, BarChart3, TrendingUp, AlertTriangle } from 'lucide-react-native';
+import { Target, Pencil, X, Check, BarChart3, TrendingUp, AlertTriangle, FileDown } from 'lucide-react-native';
 
 export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const insets = useSafeAreaInsets();
@@ -25,13 +28,17 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
     budgets,
     categories,
     transactions,
+    accounts,
     settings,
     categoryLimits,
     setCategoryLimit,
+    getTotalNetWorthCents,
   } = useStore();
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newLimitStr, setNewLimitStr] = useState('');
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const currencySymbol =
     settings.default_currency === 'INR' || settings.default_currency === 'IND'
@@ -67,6 +74,29 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
     setNewLimitStr((currentVal + additionalRupees).toString());
   };
 
+  const handleExportReportPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsPinModalOpen(true);
+  };
+
+  const handlePinExportSuccess = async () => {
+    try {
+      setIsExportingPdf(true);
+      await exportTransactionsToPdf({
+        accounts,
+        categories,
+        budgets,
+        transactions,
+        settings,
+        totalNetWorth: getTotalNetWorthCents(),
+      });
+    } catch {
+      Alert.alert('Export Error', 'Unable to generate spending report PDF.');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -86,13 +116,28 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
           <View style={[styles.reportIconBox, { backgroundColor: colors.accentLight }]}>
             <BarChart3 size={20} color={colors.accent} />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Spending Report</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-              Category allowances, thresholds & limit analytics
+            <Text style={[styles.headerSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
+              Category allowances & limit analytics
             </Text>
           </View>
         </View>
+
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={handleExportReportPress}
+          disabled={isExportingPdf}
+          style={[
+            styles.exportBtn,
+            { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+          ]}
+        >
+          <FileDown size={15} color={colors.accent} />
+          <Text style={[styles.exportBtnText, { color: colors.text }]}>
+            {isExportingPdf ? 'Exporting...' : 'PDF'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -310,6 +355,16 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Reusable PIN Verification Modal for PDF Export */}
+      <PinVerificationModal
+        visible={isPinModalOpen}
+        title="Export Spending Report"
+        subtitle="Enter your 4-digit PIN to authorize and generate your spending statement PDF."
+        actionType="primary"
+        onSuccess={handlePinExportSuccess}
+        onClose={() => setIsPinModalOpen(false)}
+      />
     </View>
   );
 };
@@ -322,11 +377,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    marginRight: 10,
+  },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  exportBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   reportIconBox: {
     width: 38,

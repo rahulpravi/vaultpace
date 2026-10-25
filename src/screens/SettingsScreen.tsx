@@ -20,6 +20,7 @@ import { BottomTabProps } from '../navigation/types';
 import * as Haptics from 'expo-haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SetPinModal } from '../components/security/SetPinModal';
+import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 import {
   Sun,
@@ -44,6 +45,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
   const {
     settings,
     updateSettings,
+    cleanSlateFinancialRecords,
     resetToDefaults,
     accounts,
     categories,
@@ -56,6 +58,19 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
   const [isSetPinModalOpen, setIsSetPinModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    actionType: 'destructive' | 'primary';
+    onSuccess: () => void;
+  }>({
+    visible: false,
+    title: '',
+    subtitle: '',
+    actionType: 'primary',
+    onSuccess: () => {},
+  });
 
   const handleToggleBiometrics = async (val: boolean) => {
     Haptics.selectionAsync();
@@ -142,23 +157,31 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     setIsAppLocked(true);
   };
 
-  const handleExportPdf = async () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setIsExportingPdf(true);
-      await exportTransactionsToPdf({
-        accounts,
-        categories,
-        budgets,
-        transactions,
-        settings,
-        totalNetWorth: getTotalNetWorthCents(),
-      });
-    } catch {
-      Alert.alert('Export Error', 'Unable to generate PDF statement.');
-    } finally {
-      setIsExportingPdf(false);
-    }
+  const handleExportPdf = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPinModalConfig({
+      visible: true,
+      title: 'Authorize PDF Export',
+      subtitle: 'Enter your 4-digit PIN to generate and download your confidential financial PDF statement.',
+      actionType: 'primary',
+      onSuccess: async () => {
+        try {
+          setIsExportingPdf(true);
+          await exportTransactionsToPdf({
+            accounts,
+            categories,
+            budgets,
+            transactions,
+            settings,
+            totalNetWorth: getTotalNetWorthCents(),
+          });
+        } catch {
+          Alert.alert('Export Error', 'Unable to generate PDF statement.');
+        } finally {
+          setIsExportingPdf(false);
+        }
+      },
+    });
   };
 
   const handleExportJSON = async () => {
@@ -208,17 +231,28 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
   const handleResetData = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
-      'Clear All Records',
-      'This will wipe all accounts, transactions, and budgets back to a clean initial state with zero transactions and default INR (₹) currency. Are you sure?',
+      'Clean Slate (Reset Financial Records)',
+      'This will wipe all transactions, wallet balances, and custom category limits to a clean initial state.\n\nYour security PIN, biometrics, and theme preferences will NOT be affected.\n\nEnter your PIN to authorize.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Wipe to Clean Slate',
+          text: 'Verify PIN & Wipe',
           style: 'destructive',
           onPress: () => {
-            resetToDefaults();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Clean Slate Ready', 'All records have been reset. App starts with zero transactions.');
+            setPinModalConfig({
+              visible: true,
+              title: 'Authorize Clean Slate',
+              subtitle: 'Enter your 4-digit PIN to wipe all financial records and reset balances to zero.',
+              actionType: 'destructive',
+              onSuccess: () => {
+                cleanSlateFinancialRecords();
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert(
+                  'Clean Slate Ready',
+                  'All financial transactions, wallet balances, and limits have been wiped. App settings and PIN remain active.'
+                );
+              },
+            });
           },
         },
       ]
@@ -711,6 +745,16 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
       <SetPinModal
         visible={isSetPinModalOpen}
         onClose={() => setIsSetPinModalOpen(false)}
+      />
+
+      {/* Reusable Security PIN Verification Modal */}
+      <PinVerificationModal
+        visible={pinModalConfig.visible}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        actionType={pinModalConfig.actionType}
+        onSuccess={pinModalConfig.onSuccess}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );

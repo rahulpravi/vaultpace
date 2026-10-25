@@ -203,20 +203,25 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ visibl
             </View>
 
             {/* Big Amount Input */}
-            <View style={styles.amountWrap}>
-              <Text style={[styles.currencyPrefix, { color: colors.accent }]}>{currencySymbol}</Text>
-              <TextInput
-                value={amountStr}
-                onChangeText={(val) => {
-                  setAmountStr(val);
-                  setError(null);
-                }}
-                placeholder="0.00"
-                placeholderTextColor={colors.textMuted + '80'}
-                keyboardType="decimal-pad"
-                style={[styles.amountInput, { color: colors.text }]}
-                autoFocus
-              />
+            <View style={styles.amountContainer}>
+              <View style={styles.amountRow}>
+                <Text style={[styles.currencyPrefix, { color: colors.accent }]}>
+                  {currencySymbol}
+                </Text>
+                <TextInput
+                  value={amountStr}
+                  onChangeText={(val) => {
+                    setAmountStr(val);
+                    setError(null);
+                  }}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.textMuted + '80'}
+                  keyboardType="decimal-pad"
+                  selectionColor="#10B981"
+                  style={[styles.amountInput, { color: colors.text }]}
+                  autoFocus
+                />
+              </View>
             </View>
 
             {error && (
@@ -429,22 +434,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  amountWrap: {
+  amountContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10,
   },
   currencyPrefix: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '800',
     marginRight: 4,
+    lineHeight: 42,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   amountInput: {
     fontSize: 38,
     fontWeight: '800',
-    minWidth: 140,
-    textAlign: 'center',
+    lineHeight: 44,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    margin: 0,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    letterSpacing: -0.5,
   },
   errorBox: {
     padding: 10,

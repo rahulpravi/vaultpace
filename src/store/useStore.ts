@@ -165,6 +165,7 @@ interface TrackerStore {
   resetSecurityPin: () => void;
 
   updateSettings: (settings: Partial<UserSettings>) => void;
+  cleanSlateFinancialRecords: () => void;
   resetToDefaults: () => void;
 
   // Computed helper
@@ -341,16 +342,31 @@ export const useStore = create<TrackerStore>()(
         });
       },
 
-      resetToDefaults: () => {
-        set({
-          accounts: calculateBalances(DEFAULT_ACCOUNTS, []),
-          categories: DEFAULT_CATEGORIES,
-          budgets: DEFAULT_BUDGETS,
-          transactions: [],
-          settings: DEFAULT_SETTINGS,
-          categoryLimits: DEFAULT_CATEGORY_LIMITS,
-          isAppLocked: false,
+      cleanSlateFinancialRecords: () => {
+        set((state) => {
+          // Zero out existing account balances, or fallback to default zeroed accounts
+          const zeroedAccounts: Account[] = (
+            state.accounts.length > 0 ? state.accounts : DEFAULT_ACCOUNTS
+          ).map((acc) => ({
+            ...acc,
+            initial_balance: 0,
+            current_balance: 0,
+            transaction_count: 0,
+          }));
+
+          return {
+            transactions: [],
+            accounts: zeroedAccounts,
+            categoryLimits: DEFAULT_CATEGORY_LIMITS,
+            budgets: DEFAULT_BUDGETS,
+            // Settings (PIN, biometrics, theme, preferences) are preserved strictly!
+          };
         });
+      },
+
+      resetToDefaults: () => {
+        // Alias cleanSlateFinancialRecords to ensure core settings are never wiped
+        get().cleanSlateFinancialRecords();
       },
 
       getTotalNetWorthCents: () => {
