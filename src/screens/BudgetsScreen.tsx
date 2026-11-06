@@ -3,12 +3,14 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
   Alert,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
@@ -19,7 +21,11 @@ import { exportTransactionsToPdf } from '../utils/exportPdf';
 import { BottomTabProps } from '../navigation/types';
 import { Category } from '../types';
 import * as Haptics from 'expo-haptics';
-import { Target, Pencil, X, Check, BarChart3, TrendingUp, AlertTriangle, FileDown } from 'lucide-react-native';
+import { Target, Pencil, X, Check, BarChart3, FileDown } from 'lucide-react-native';
+import {
+  CustomAmountKeypad,
+  AmountDisplay,
+} from '../components/common/CustomAmountKeypad';
 
 export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const insets = useSafeAreaInsets();
@@ -52,6 +58,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
       : settings.default_currency;
 
   const handleOpenEdit = (cat: Category, currentLimitCents: number) => {
+    Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditingCategory(cat);
     const standardAmount = (currentLimitCents / 100).toFixed(0);
@@ -165,7 +172,13 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
           {categories
             .filter((c) => c.category_type === 'expense')
             .map((cat) => {
-              const catTx = transactions.filter((t) => t.category_id === cat.id);
+              const catTx = transactions.filter(
+                (t) =>
+                  t.category_id === cat.id &&
+                  t.transaction_type === 'expense' &&
+                  !t.is_settlement &&
+                  !t.notes?.toLowerCase().startsWith('settled:')
+              );
               const spent = catTx.reduce((acc, t) => acc + t.amount, 0);
               const limit =
                 categoryLimits?.[cat.id] !== undefined
@@ -253,7 +266,10 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         transparent={true}
         onRequestClose={() => setEditingCategory(null)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
             {/* Modal Header */}
             <View style={[styles.modalHeaderRow, { borderBottomColor: colors.border }]}>
@@ -283,26 +299,18 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
               warn you as you approach this cap.
             </Text>
 
-            {/* Amount Input with Currency Prefix */}
-            <View
-              style={[
-                styles.inputWrapper,
-                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
-              ]}
-            >
-              <Text style={[styles.currencyPrefix, { color: colors.accent }]}>
-                {currencySymbol}
-              </Text>
-              <TextInput
-                value={newLimitStr}
-                onChangeText={setNewLimitStr}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted + '80'}
-                keyboardType="numeric"
-                style={[styles.limitInput, { color: colors.text }]}
-                autoFocus
-              />
-            </View>
+            {/* Amount Display - Pure Text, No System Keyboard */}
+            <AmountDisplay
+              value={newLimitStr}
+              currencySymbol={currencySymbol}
+              placeholder="0"
+              isFocused={true}
+              style={{
+                backgroundColor: colors.surfaceSubtle,
+                borderColor: colors.border,
+                marginVertical: 10,
+              }}
+            />
 
             {/* Quick Adjustment Chips */}
             <Text style={[styles.chipLabel, { color: colors.textMuted }]}>Quick Increments</Text>
@@ -333,6 +341,15 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
               </TouchableOpacity>
             </View>
 
+            {/* In-App Custom Cash Keypad (No System Keyboard) */}
+            <CustomAmountKeypad
+              value={newLimitStr}
+              onChange={setNewLimitStr}
+              onClear={() => setNewLimitStr('0')}
+              allowDecimal={false}
+              keyHeight={44}
+            />
+
             {/* Action Buttons */}
             <View style={styles.modalActionRow}>
               <TouchableOpacity
@@ -353,7 +370,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Reusable PIN Verification Modal for PDF Export */}
@@ -562,26 +579,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 18,
-    marginBottom: 16,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  currencyPrefix: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginRight: 8,
-  },
-  limitInput: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
+    marginBottom: 8,
   },
   chipLabel: {
     fontSize: 11,

@@ -109,7 +109,16 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
   }, [settings.biometrics_enabled, biometricsAvailable, title, onClose, onSuccess]);
 
   const verifyCandidatePin = (candidatePin: string) => {
-    const expectedPin = settings.security_pin || '1234';
+    const expectedPin = settings.security_pin;
+
+    if (!expectedPin) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerShake();
+      setErrorMsg('No security PIN is configured. Please set one first.');
+      setPin('');
+      setScrambledDigits(shuffleDigits());
+      return;
+    }
 
     if (candidatePin === expectedPin) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -228,7 +237,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
               <Text style={[styles.errorText, { color: colors.danger }]}>{errorMsg}</Text>
             ) : !settings.security_pin ? (
               <Text style={[styles.hintText, { color: colors.textMuted }]}>
-                (Default PIN: 1234)
+                (Set a PIN in Settings before enabling vault lock)
               </Text>
             ) : null}
           </View>

@@ -35,8 +35,8 @@ import {
   Globe,
   FileText,
   KeyRound,
-  ShieldAlert,
   Fingerprint,
+  Coins,
 } from 'lucide-react-native';
 
 export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ navigation }) => {
@@ -46,7 +46,6 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     settings,
     updateSettings,
     cleanSlateFinancialRecords,
-    resetToDefaults,
     accounts,
     categories,
     budgets,
@@ -230,33 +229,21 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
   const handleResetData = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      'Clean Slate (Reset Financial Records)',
-      'This will wipe all transactions, wallet balances, and custom category limits to a clean initial state.\n\nYour security PIN, biometrics, and theme preferences will NOT be affected.\n\nEnter your PIN to authorize.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Verify PIN & Wipe',
-          style: 'destructive',
-          onPress: () => {
-            setPinModalConfig({
-              visible: true,
-              title: 'Authorize Clean Slate',
-              subtitle: 'Enter your 4-digit PIN to wipe all financial records and reset balances to zero.',
-              actionType: 'destructive',
-              onSuccess: () => {
-                cleanSlateFinancialRecords();
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert(
-                  'Clean Slate Ready',
-                  'All financial transactions, wallet balances, and limits have been wiped. App settings and PIN remain active.'
-                );
-              },
-            });
-          },
-        },
-      ]
-    );
+    setPinModalConfig({
+      visible: true,
+      title: 'Authorize Clean Slate',
+      subtitle:
+        'Enter your 4-digit PIN to wipe all transactions, wallet balances, and limits. Your security PIN, biometrics, and preferences will NOT be affected.',
+      actionType: 'destructive',
+      onSuccess: () => {
+        cleanSlateFinancialRecords();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Clean Slate Ready',
+          'All financial transactions, wallet balances, and custom limits have been wiped. Your security PIN, biometrics, and preferences are preserved.'
+        );
+      },
+    });
   };
 
   const currencyOptions = [
@@ -642,6 +629,30 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
+            {/* Debts & IOUs Tracker */}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate('Debts' as any);
+              }}
+              style={styles.actionRow}
+            >
+              <View style={styles.actionLeft}>
+                <Coins size={20} color={colors.accent} />
+                <View>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>
+                    Debts & IOUs (Loan Tracker)
+                  </Text>
+                  <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>
+                    Track borrowed & lent money with contacts and settlements
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
             {/* Export PDF */}
             <TouchableOpacity
               onPress={handleExportPdf}

@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { useStore, formatCurrency } from '../store/useStore';
-import { AccountCard } from '../components/domain/AccountCard';
+import { AppleWalletCardStack } from '../components/domain/AppleWalletCardStack';
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
@@ -23,6 +23,7 @@ import {
   ArrowUpRight,
   Plus,
   ArrowRight,
+  Coins,
 } from 'lucide-react-native';
 
 export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) => {
@@ -50,13 +51,69 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
       )
     : transactions;
 
-  // Monthly income and expense calculations
-  const monthlyExpense = filteredTransactions
-    .filter((t) => t.transaction_type === 'expense')
+  // Guarantee only user accounts (Cash Wallet, Bank Account, Savings Vault, etc.) are rendered
+  const userAccounts = accounts.filter(
+    (acc) =>
+      acc &&
+      acc.name?.toLowerCase() !== 'consolidated' &&
+      acc.name?.toLowerCase() !== 'all' &&
+      acc.id !== 'consolidated' &&
+      acc.id !== 'all'
+  );
+
+  const selectedAccount = selectedAccountId
+    ? userAccounts.find((a) => a.id === selectedAccountId)
+    : null;
+
+  // Active Debts
+  const activeDebts = transactions.filter(
+    (t) => (t.transaction_type === 'borrow' || t.transaction_type === 'lend') && !t.is_settled
+  );
+  const activeLent = activeDebts
+    .filter((t) => t.transaction_type === 'lend')
+    .reduce((acc, t) => acc + t.amount, 0);
+  const activeBorrowed = activeDebts
+    .filter((t) => t.transaction_type === 'borrow')
     .reduce((acc, t) => acc + t.amount, 0);
 
+  // =========================================================================
+  // Standard Income & Expense Calculations (Dashboard Accuracy)
+  //
+  // Strict Rules Applied:
+  // 1. Exclude from Income: "Borrow" transactions increase the wallet balance
+  //    (liabilities), but MUST NOT be added to Total Income or Monthly Income statistics.
+  // 2. Exclude from Expense: "Lend" transactions decrease the wallet balance
+  //    (receivables), but MUST NOT be added to Total Spent or Monthly Expense statistics.
+  // 3. Only standard "Income" and "Expense" types affect the Home screen Income/Spent cards.
+  //    Borrow/Lend exclusively affect the specific wallet balance and the separate Debts/IOUs ledger.
+  // =========================================================================
+  const isStandardIncome = (t: (typeof transactions)[0]) =>
+    t.transaction_type === 'income' &&
+    !t.is_settlement &&
+    !t.notes?.toLowerCase().startsWith('settled:');
+
+  const isStandardExpense = (t: (typeof transactions)[0]) =>
+    t.transaction_type === 'expense' &&
+    !t.is_settlement &&
+    !t.notes?.toLowerCase().startsWith('settled:');
+
+  // Total Income & Total Spent (all-time standard transactions for active view/wallet)
+  const totalIncome = filteredTransactions
+    .filter(isStandardIncome)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalSpent = filteredTransactions
+    .filter(isStandardExpense)
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  // Monthly Income & Monthly Expense (current calendar month standard transactions)
+  const currentMonthPrefix = new Date().toISOString().slice(0, 7);
   const monthlyIncome = filteredTransactions
-    .filter((t) => t.transaction_type === 'income')
+    .filter((t) => isStandardIncome(t) && t.transaction_date?.startsWith(currentMonthPrefix))
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const monthlyExpense = filteredTransactions
+    .filter((t) => isStandardExpense(t) && t.transaction_date?.startsWith(currentMonthPrefix))
     .reduce((acc, t) => acc + t.amount, 0);
 
   const activeBudget = budgets[0];
@@ -71,7 +128,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           styles.scrollContent,
           {
             paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + 90,
+            paddingBottom: insets.bottom + 110,
           },
         ]}
       >
@@ -102,14 +159,17 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         </View>
 
         {/* =========================================================================
-            Top Net Worth Summary
+            Top Net Worth Summary / Active Wallet Balance
             ========================================================================= */}
         <View style={styles.topHeader}>
           <Text style={[styles.netWorthLabel, { color: colors.textMuted }]}>
-            TOTAL NET WORTH
+            {selectedAccount ? `${selectedAccount.name.toUpperCase()} BALANCE` : 'TOTAL NET WORTH'}
           </Text>
           <Text style={[styles.netWorthAmount, { color: colors.text }]}>
-            {formatCurrency(totalNetWorth, settings.default_currency)}
+            {formatCurrency(
+              selectedAccount ? selectedAccount.current_balance : totalNetWorth,
+              selectedAccount?.currency || settings.default_currency
+            )}
           </Text>
         </View>
 
@@ -129,7 +189,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View>
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>INCOME</Text>
               <Text style={[styles.metricValue, { color: colors.success }]}>
-                +{formatCurrency(monthlyIncome, settings.default_currency)}
+                +{formatCurrency(totalIncome, settings.default_currency)}
               </Text>
             </View>
           </View>
@@ -143,39 +203,73 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View>
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>SPENT</Text>
               <Text style={[styles.metricValue, { color: colors.danger }]}>
-                -{formatCurrency(monthlyExpense, settings.default_currency)}
+                -{formatCurrency(totalSpent, settings.default_currency)}
               </Text>
             </View>
           </View>
         </View>
 
         {/* =========================================================================
-            Wallets & Accounts (Accounts Horizontal Carousel)
+            Wallets & Accounts (Apple Wallet Stacked Cards Interface)
             ========================================================================= */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Wallets & Accounts</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('AccountsTab')}
-            style={styles.seeAllBtn}
-          >
-            <Text style={[styles.seeAllText, { color: colors.accent }]}>Manage</Text>
-            <ArrowRight size={13} color={colors.accent} />
-          </TouchableOpacity>
-        </View>
+        <AppleWalletCardStack
+          accounts={userAccounts}
+          selectedAccountId={selectedAccountId}
+          onSelectAccount={(accId) => setSelectedAccountId(accId)}
+          onManageAccounts={() => navigation.navigate('AccountsTab')}
+          onAddAccount={() => navigation.navigate('AccountsTab')}
+        />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.walletsScroll}>
-          {accounts.map((acc) => (
-            <AccountCard
-              key={acc.id}
-              account={acc}
-              isSelected={selectedAccountId === acc.id}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setSelectedAccountId(selectedAccountId === acc.id ? null : acc.id);
-              }}
-            />
-          ))}
-        </ScrollView>
+        {/* =========================================================================
+            Debts & IOUs Quick Access Card
+            ========================================================================= */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('Debts' as any);
+          }}
+          style={[
+            styles.debtsBannerCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.debtsBannerLeft}>
+            <View style={[styles.debtsIconWrap, { backgroundColor: colors.accentLight }]}>
+              <Coins size={18} color={colors.accent} />
+            </View>
+            <View>
+              <Text style={[styles.debtsBannerTitle, { color: colors.text }]}>Debts & IOUs</Text>
+              <Text style={[styles.debtsBannerSubtitle, { color: colors.textMuted }]}>
+                {activeDebts.length > 0
+                  ? `${activeDebts.length} active records`
+                  : 'Track money borrowed & lent'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.debtsBannerRight}>
+            {activeDebts.length > 0 ? (
+              <View style={{ alignItems: 'flex-end', marginRight: 6 }}>
+                {activeLent > 0 && (
+                  <Text style={[styles.debtsBadgeLent, { color: '#059669' }]}>
+                    +{formatCurrency(activeLent, settings.default_currency)} (Lent)
+                  </Text>
+                )}
+                {activeBorrowed > 0 && (
+                  <Text style={[styles.debtsBadgeBorrowed, { color: '#D97706' }]}>
+                    -{formatCurrency(activeBorrowed, settings.default_currency)} (Owe)
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <Text style={[styles.seeAllText, { color: colors.accent, marginRight: 4 }]}>
+                View
+              </Text>
+            )}
+            <ArrowRight size={14} color={colors.accent} />
+          </View>
+        </TouchableOpacity>
 
         {/* =========================================================================
             Spending Report (Budget Pace)
@@ -250,7 +344,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           styles.fab,
           {
             backgroundColor: colors.accent,
-            bottom: insets.bottom + 65,
+            bottom: insets.bottom + 98,
           },
         ]}
       >
@@ -302,12 +396,6 @@ const styles = StyleSheet.create({
   },
   topHeader: {
     marginBottom: 16,
-  },
-  privacyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
   },
   netWorthLabel: {
     fontSize: 11,
@@ -391,12 +479,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  walletsScroll: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
   budgetSection: {
     marginBottom: 8,
   },
@@ -426,5 +508,53 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
     zIndex: 99,
+  },
+  debtsBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  debtsBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  debtsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  debtsBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  debtsBannerSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  debtsBannerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  debtsBadgeLent: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  debtsBadgeBorrowed: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
   },
 });

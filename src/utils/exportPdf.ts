@@ -17,11 +17,21 @@ export async function exportTransactionsToPdf(data: ExportPdfData): Promise<stri
   const { accounts, categories, transactions, settings, totalNetWorth } = data;
 
   const totalIncome = transactions
-    .filter((t) => t.transaction_type === 'income')
+    .filter(
+      (t) =>
+        t.transaction_type === 'income' &&
+        !t.is_settlement &&
+        !t.notes?.toLowerCase().startsWith('settled:')
+    )
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalExpense = transactions
-    .filter((t) => t.transaction_type === 'expense')
+    .filter(
+      (t) =>
+        t.transaction_type === 'expense' &&
+        !t.is_settlement &&
+        !t.notes?.toLowerCase().startsWith('settled:')
+    )
     .reduce((sum, t) => sum + t.amount, 0);
 
   const formattedDate = new Date().toLocaleDateString('en-IN', {

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import {
   Account,
   Budget,
@@ -8,6 +9,30 @@ import {
   Transaction,
   UserSettings,
 } from '../types';
+
+const SECURITY_PIN_STORAGE_KEY = 'vaultpace.security_pin';
+
+export async function loadSecurityPin(): Promise<string | undefined> {
+  try {
+    const storedPin = await SecureStore.getItemAsync(SECURITY_PIN_STORAGE_KEY);
+    return storedPin || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function saveSecurityPin(pin: string | null): Promise<void> {
+  try {
+    if (!pin) {
+      await SecureStore.deleteItemAsync(SECURITY_PIN_STORAGE_KEY);
+      return;
+    }
+
+    await SecureStore.setItemAsync(SECURITY_PIN_STORAGE_KEY, pin);
+  } catch {
+    // Secure storage is unavailable; fail closed and require reconfiguration.
+  }
+}
 
 export const DEFAULT_ACCOUNTS: Account[] = [
   {
@@ -52,8 +77,10 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-4', name: 'Transit', category_type: 'expense', color: '#b45309', icon: 'car', is_default: true, sort_order: 4 },
   { id: 'cat-5', name: 'Entertainment', category_type: 'expense', color: '#6d28d9', icon: 'film', is_default: true, sort_order: 5 },
   { id: 'cat-6', name: 'Health & Wellness', category_type: 'expense', color: '#0f766e', icon: 'heart-pulse', is_default: true, sort_order: 6 },
-  { id: 'cat-7', name: 'Salary', category_type: 'income', color: '#047857', icon: 'briefcase', is_default: true, sort_order: 7 },
-  { id: 'cat-8', name: 'Freelance & Bonus', category_type: 'income', color: '#1d4ed8', icon: 'briefcase', is_default: true, sort_order: 8 },
+  { id: 'cat-expense-other', name: 'Other', category_type: 'expense', color: '#64748b', icon: 'more-horizontal', is_default: true, sort_order: 7 },
+  { id: 'cat-7', name: 'Salary', category_type: 'income', color: '#047857', icon: 'briefcase', is_default: true, sort_order: 8 },
+  { id: 'cat-8', name: 'Freelance & Bonus', category_type: 'income', color: '#1d4ed8', icon: 'briefcase', is_default: true, sort_order: 9 },
+  { id: 'cat-income-other', name: 'Other', category_type: 'income', color: '#64748b', icon: 'more-horizontal', is_default: true, sort_order: 10 },
 ];
 
 export const DEFAULT_BUDGETS: Budget[] = [
@@ -74,6 +101,7 @@ export const DEFAULT_CATEGORY_LIMITS: Record<string, number> = {
   'cat-4': 500000,  // Transit ₹5,000.00
   'cat-5': 500000,  // Entertainment ₹5,000.00
   'cat-6': 500000,  // Health & Wellness ₹5,000.00
+  'cat-expense-other': 500000, // Other ₹5,000.00
 };
 
 export const DEFAULT_TRANSACTIONS: Transaction[] = [];
@@ -91,13 +119,38 @@ export const DEFAULT_SETTINGS: UserSettings = {
 };
 
 function calculateBalances(accounts: Account[], transactions: Transaction[]): Account[] {
+  const sanitizedAccounts = accounts.filter(
+    (acc) =>
+      acc &&
+      acc.name?.toLowerCase() !== 'consolidated' &&
+      acc.name?.toLowerCase() !== 'all' &&
+      acc.id !== 'consolidated' &&
+      acc.id !== 'all'
+  );
+
   const txMap: Record<
     string,
-    { income: number; expense: number; transferIn: number; transferOut: number; count: number }
+    {
+      income: number;
+      expense: number;
+      transferIn: number;
+      transferOut: number;
+      borrowIn: number;
+      lendOut: number;
+      count: number;
+    }
   > = {};
 
-  for (const acc of accounts) {
-    txMap[acc.id] = { income: 0, expense: 0, transferIn: 0, transferOut: 0, count: 0 };
+  for (const acc of sanitizedAccounts) {
+    txMap[acc.id] = {
+      income: 0,
+      expense: 0,
+      transferIn: 0,
+      transferOut: 0,
+      borrowIn: 0,
+      lendOut: 0,
+      count: 0,
+    };
   }
 
   for (const tx of transactions) {
@@ -116,12 +169,39 @@ function calculateBalances(accounts: Account[], transactions: Transaction[]): Ac
         txMap[tx.to_account_id].transferIn += tx.amount;
         txMap[tx.to_account_id].count += 1;
       }
+    } else if (tx.transaction_type === 'borrow') {
+      // Money borrowed flows into the selected wallet (increases wallet balance, liability)
+      if (txMap[tx.account_id]) {
+        txMap[tx.account_id].borrowIn += tx.amount;
+        txMap[tx.account_id].count += 1;
+      }
+    } else if (tx.transaction_type === 'lend') {
+      // Money lent flows out of the selected wallet (decreases wallet balance, receivable asset)
+      if (txMap[tx.account_id]) {
+        txMap[tx.account_id].lendOut += tx.amount;
+        txMap[tx.account_id].count += 1;
+      }
     }
   }
 
-  return accounts.map((acc) => {
-    const stats = txMap[acc.id] || { income: 0, expense: 0, transferIn: 0, transferOut: 0, count: 0 };
-    const current = acc.initial_balance + stats.income - stats.expense - stats.transferOut + stats.transferIn;
+  return sanitizedAccounts.map((acc) => {
+    const stats = txMap[acc.id] || {
+      income: 0,
+      expense: 0,
+      transferIn: 0,
+      transferOut: 0,
+      borrowIn: 0,
+      lendOut: 0,
+      count: 0,
+    };
+    const current =
+      acc.initial_balance +
+      stats.income -
+      stats.expense -
+      stats.transferOut +
+      stats.transferIn +
+      stats.borrowIn -
+      stats.lendOut;
     return {
       ...acc,
       current_balance: current,
@@ -141,6 +221,7 @@ interface TrackerStore {
   addTransaction: (tx: Omit<Transaction, 'id' | 'created_at'>) => Transaction;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
+  settleDebt: (id: string, settlementAccountId: string) => void;
 
   addAccount: (acc: Omit<Account, 'id' | 'current_balance' | 'transaction_count'>) => Account;
   updateAccount: (id: string, updates: Partial<Account>) => void;
@@ -161,8 +242,9 @@ interface TrackerStore {
   // Lock / Security State
   isAppLocked: boolean;
   setIsAppLocked: (locked: boolean) => void;
-  setSecurityPin: (pin: string | null) => void;
-  resetSecurityPin: () => void;
+  hydrateSecurityPin: () => Promise<void>;
+  setSecurityPin: (pin: string | null) => Promise<void>;
+  resetSecurityPin: () => Promise<void>;
 
   updateSettings: (settings: Partial<UserSettings>) => void;
   cleanSlateFinancialRecords: () => void;
@@ -196,17 +278,30 @@ export const useStore = create<TrackerStore>()(
         set({ isAppLocked: locked });
       },
 
-      setSecurityPin: (pin: string | null) => {
+      hydrateSecurityPin: async () => {
+        const storedPin = await loadSecurityPin();
         set((state) => ({
           settings: {
             ...state.settings,
-            security_pin: pin || undefined,
-            pin_lock_enabled: Boolean(pin),
+            security_pin: storedPin,
           },
         }));
       },
 
-      resetSecurityPin: () => {
+      setSecurityPin: async (pin: string | null) => {
+        const safePin = pin || undefined;
+        await saveSecurityPin(safePin ?? null);
+        set((state) => ({
+          settings: {
+            ...state.settings,
+            security_pin: safePin,
+            pin_lock_enabled: Boolean(safePin),
+          },
+        }));
+      },
+
+      resetSecurityPin: async () => {
+        await saveSecurityPin(null);
         set((state) => ({
           isAppLocked: false,
           settings: {
@@ -247,6 +342,54 @@ export const useStore = create<TrackerStore>()(
 
       deleteTransaction: (id) => {
         const updatedTxList = get().transactions.filter((t) => t.id !== id);
+        const updatedAccounts = calculateBalances(get().accounts, updatedTxList);
+
+        set({
+          transactions: updatedTxList,
+          accounts: updatedAccounts,
+        });
+      },
+
+      settleDebt: (txId, settlementAccountId) => {
+        const tx = get().transactions.find((t) => t.id === txId);
+        if (!tx || tx.is_settled) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
+          now.getMinutes()
+        ).padStart(2, '0')}:00`;
+
+        // 1. Mark original debt movement as settled
+        const updatedDebt: Transaction = {
+          ...tx,
+          is_settled: true,
+          settled_at: today,
+          settled_account_id: settlementAccountId,
+        };
+
+        // 2. Create the offsetting settlement payment movement in the selected wallet
+        const settlementTx: Transaction = {
+          id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          account_id: settlementAccountId,
+          amount: tx.amount,
+          // Settling borrowed money means you pay it out (expense)
+          // Settling lent money means you collect it in (income)
+          transaction_type: tx.transaction_type === 'borrow' ? 'expense' : 'income',
+          transaction_date: today,
+          transaction_time: timeStr,
+          is_settlement: true,
+          notes:
+            tx.transaction_type === 'borrow'
+              ? `Settled: Repaid borrowed money to ${tx.contact_name || 'Contact'}`
+              : `Settled: Collected lent money from ${tx.contact_name || 'Contact'}`,
+          created_at: new Date().toISOString(),
+        };
+
+        const updatedTxList = [
+          settlementTx,
+          ...get().transactions.map((t) => (t.id === txId ? updatedDebt : t)),
+        ];
         const updatedAccounts = calculateBalances(get().accounts, updatedTxList);
 
         set({
@@ -338,15 +481,27 @@ export const useStore = create<TrackerStore>()(
 
       updateSettings: (settingsUpdates) => {
         set({
-          settings: { ...get().settings, ...settingsUpdates },
+          settings: {
+            ...get().settings,
+            ...settingsUpdates,
+            security_pin: get().settings.security_pin,
+          },
         });
       },
 
       cleanSlateFinancialRecords: () => {
         set((state) => {
-          // Zero out existing account balances, or fallback to default zeroed accounts
+          // Zero out existing user accounts, completely filtering out any "Consolidated" or pseudo accounts
+          const cleanAccounts = state.accounts.filter(
+            (a) =>
+              a &&
+              a.name?.toLowerCase() !== 'consolidated' &&
+              a.name?.toLowerCase() !== 'all' &&
+              a.id !== 'consolidated' &&
+              a.id !== 'all'
+          );
           const zeroedAccounts: Account[] = (
-            state.accounts.length > 0 ? state.accounts : DEFAULT_ACCOUNTS
+            cleanAccounts.length > 0 ? cleanAccounts : DEFAULT_ACCOUNTS
           ).map((acc) => ({
             ...acc,
             initial_balance: 0,
@@ -357,9 +512,7 @@ export const useStore = create<TrackerStore>()(
           return {
             transactions: [],
             accounts: zeroedAccounts,
-            categoryLimits: DEFAULT_CATEGORY_LIMITS,
-            budgets: DEFAULT_BUDGETS,
-            // Settings (PIN, biometrics, theme, preferences) are preserved strictly!
+            // Category limits, budgets, categories, and settings (PIN, biometrics, theme, preferences) are preserved strictly!
           };
         });
       },
@@ -381,12 +534,23 @@ export const useStore = create<TrackerStore>()(
         categories: state.categories,
         budgets: state.budgets,
         transactions: state.transactions,
-        settings: state.settings,
+        settings: {
+          ...state.settings,
+          security_pin: undefined,
+        },
         categoryLimits: state.categoryLimits,
       }),
-      version: 2,
+      version: 3,
       migrate: (persistedState: any, version: number) => {
-        if (version < 2 || !persistedState) {
+        if (!persistedState) {
+          return persistedState;
+        }
+
+        if (persistedState.settings) {
+          persistedState.settings.security_pin = undefined;
+        }
+
+        if (version < 2) {
           return {
             accounts: DEFAULT_ACCOUNTS,
             categories: DEFAULT_CATEGORIES,
@@ -396,7 +560,65 @@ export const useStore = create<TrackerStore>()(
             categoryLimits: DEFAULT_CATEGORY_LIMITS,
           };
         }
+        if (Array.isArray(persistedState.accounts)) {
+          persistedState.accounts = persistedState.accounts.filter(
+            (acc: any) =>
+              acc &&
+              acc.name?.toLowerCase() !== 'consolidated' &&
+              acc.name?.toLowerCase() !== 'all' &&
+              acc.id !== 'consolidated' &&
+              acc.id !== 'all'
+          );
+          if (persistedState.accounts.length === 0) {
+            persistedState.accounts = DEFAULT_ACCOUNTS;
+          }
+        }
         return persistedState;
+      },
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.accounts)) {
+          state.accounts = state.accounts.filter(
+            (acc) =>
+              acc &&
+              acc.name?.toLowerCase() !== 'consolidated' &&
+              acc.name?.toLowerCase() !== 'all' &&
+              acc.id !== 'consolidated' &&
+              acc.id !== 'all'
+          );
+          if (state.accounts.length === 0) {
+            state.accounts = DEFAULT_ACCOUNTS;
+          }
+        }
+        if (state && Array.isArray(state.categories)) {
+          const hasExpenseOther = state.categories.some(
+            (c) => c.category_type === 'expense' && c.name.toLowerCase() === 'other'
+          );
+          if (!hasExpenseOther) {
+            state.categories.push({
+              id: 'cat-expense-other',
+              name: 'Other',
+              category_type: 'expense',
+              color: '#64748b',
+              icon: 'more-horizontal',
+              is_default: true,
+              sort_order: 99,
+            });
+          }
+          const hasIncomeOther = state.categories.some(
+            (c) => c.category_type === 'income' && c.name.toLowerCase() === 'other'
+          );
+          if (!hasIncomeOther) {
+            state.categories.push({
+              id: 'cat-income-other',
+              name: 'Other',
+              category_type: 'income',
+              color: '#64748b',
+              icon: 'more-horizontal',
+              is_default: true,
+              sort_order: 100,
+            });
+          }
+        }
       },
     }
   )

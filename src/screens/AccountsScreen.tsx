@@ -9,6 +9,8 @@ import {
   Alert,
   Modal,
   StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
@@ -47,6 +49,16 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
   const { accounts, addAccount, deleteAccount, settings } = useStore();
+
+  // Guarantee only user accounts (Cash Wallet, Bank Account, Savings Vault, etc.) are rendered
+  const userAccounts = accounts.filter(
+    (acc) =>
+      acc &&
+      acc.name?.toLowerCase() !== 'consolidated' &&
+      acc.name?.toLowerCase() !== 'all' &&
+      acc.id !== 'consolidated' &&
+      acc.id !== 'all'
+  );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState('');
@@ -89,6 +101,14 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
       return;
     }
 
+    if (
+      name.trim().toLowerCase() === 'consolidated' ||
+      name.trim().toLowerCase() === 'all'
+    ) {
+      setError('Please choose a specific wallet name.');
+      return;
+    }
+
     const initialCents = parseAmountToCents(initialBalanceStr);
     addAccount({
       name: name.trim(),
@@ -107,7 +127,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
   };
 
   const handleDelete = (id: string, accName: string) => {
-    if (accounts.length <= 1) {
+    if (userAccounts.length <= 1) {
       Alert.alert('Cannot Delete', 'You must maintain at least one active wallet.');
       return;
     }
@@ -172,7 +192,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
       >
         <View style={styles.accountGrid}>
-          {accounts.map((acc) => {
+          {userAccounts.map((acc) => {
             const IconComponent = getAccountIcon(acc.account_type);
             const isNegative = acc.current_balance < 0;
 
@@ -240,7 +260,10 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
         transparent={true}
         onRequestClose={() => setIsModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Create New Wallet</Text>
@@ -258,7 +281,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
               </View>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Wallet Name</Text>
               <TextInput
                 value={name}
@@ -302,85 +325,50 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
                 ))}
               </View>
 
-              {/* Currency Dropdown Selector */}
+              {/* Currency Selector (Default strictly INR) */}
               <Text style={[styles.inputLabel, { color: colors.textMuted, marginTop: 14 }]}>
-                Account Currency
+                Account Currency (Default: INR ₹)
               </Text>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setIsCurrencyPickerOpen(!isCurrencyPickerOpen);
-                }}
-                style={[
-                  styles.dropdownTrigger,
-                  {
-                    backgroundColor: colors.surfaceSubtle,
-                    borderColor: isCurrencyPickerOpen ? colors.accent : colors.border,
-                  },
-                ]}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ flexDirection: 'row', marginBottom: 10 }}
               >
-                <View style={styles.dropdownLeft}>
-                  <Globe size={16} color={colors.accent} />
-                  <Text style={[styles.dropdownValueText, { color: colors.text }]}>
-                    {currentCurrencyInfo.label}
-                  </Text>
-                </View>
-                <ChevronDown
-                  size={16}
-                  color={colors.textMuted}
-                  style={{
-                    transform: [{ rotate: isCurrencyPickerOpen ? '180deg' : '0deg' }],
-                  }}
-                />
-              </TouchableOpacity>
-
-              {/* Currency Dropdown Options List */}
-              {isCurrencyPickerOpen && (
-                <View
-                  style={[
-                    styles.dropdownList,
-                    { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
-                  ]}
-                >
-                  {CURRENCY_OPTIONS.map((item) => {
-                    const isSelected = currency === item.code;
-                    return (
-                      <TouchableOpacity
-                        key={item.code}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setCurrency(item.code);
-                          setIsCurrencyPickerOpen(false);
-                        }}
+                {CURRENCY_OPTIONS.map((item) => {
+                  const isSelected = currency === item.code;
+                  return (
+                    <TouchableOpacity
+                      key={item.code}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setCurrency(item.code);
+                      }}
+                      style={[
+                        styles.currencyPill,
+                        {
+                          backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                          borderColor: isSelected ? colors.accent : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.dropdownItem,
+                          styles.currencyPillText,
                           {
-                            borderBottomColor: colors.border,
-                            backgroundColor: isSelected ? colors.surface : 'transparent',
+                            color: isSelected ? colors.onAccent : colors.text,
+                            fontWeight: isSelected ? '700' : '500',
                           },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.dropdownItemText,
-                            {
-                              color: isSelected ? colors.accent : colors.text,
-                              fontWeight: isSelected ? '700' : '500',
-                            },
-                          ]}
-                        >
-                          {item.label}
-                        </Text>
-                        {isSelected && <Check size={16} color={colors.accent} />}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+                        {item.symbol} {item.code}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
 
               {/* Initial Balance */}
-              <Text style={[styles.inputLabel, { color: colors.textMuted, marginTop: 14 }]}>
+              <Text style={[styles.inputLabel, { color: colors.textMuted, marginTop: 4 }]}>
                 Initial Balance ({currentCurrencyInfo.symbol})
               </Text>
               <TextInput
@@ -407,7 +395,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -570,40 +558,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  dropdownTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 48,
-    borderRadius: 14,
-    paddingHorizontal: 16,
+  currencyPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
     borderWidth: 1,
+    marginRight: 8,
   },
-  dropdownLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dropdownValueText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  dropdownList: {
-    borderRadius: 14,
-    borderWidth: 1,
-    marginTop: 6,
-    overflow: 'hidden',
-    maxHeight: 180,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  dropdownItemText: {
+  currencyPillText: {
     fontSize: 12,
   },
   modalSaveBtn: {

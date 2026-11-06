@@ -16,10 +16,11 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
 }) => {
   const { colors } = useAppTheme();
 
-  // Filter transactions for this budget (expenses only)
+  // Filter transactions for this budget (standard expenses only)
   const spentCents = transactions
     .filter((t) => {
       if (t.transaction_type !== 'expense') return false;
+      if (t.is_settlement || t.notes?.toLowerCase().startsWith('settled:')) return false;
       if (budget.category_ids && budget.category_ids.length > 0) {
         return t.category_id && budget.category_ids.includes(t.category_id);
       }

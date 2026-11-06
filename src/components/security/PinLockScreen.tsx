@@ -114,8 +114,16 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
   };
 
   const verifyPin = (candidatePin: string) => {
-    // If no pin is set yet, default fallback is '1234' or any 4 digits
-    const expectedPin = settings.security_pin || '1234';
+    const expectedPin = settings.security_pin;
+
+    if (!expectedPin) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerShake();
+      setErrorMsg('No security PIN is configured. Please set one in Settings.');
+      setPin('');
+      setScrambledDigits(shuffleDigits());
+      return;
+    }
 
     if (candidatePin === expectedPin) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -126,7 +134,6 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
       triggerShake();
       setErrorMsg('Incorrect PIN. Please try again.');
       setPin('');
-      // Rescramble keypad digits on invalid entry for maximum security
       setScrambledDigits(shuffleDigits());
     }
   };

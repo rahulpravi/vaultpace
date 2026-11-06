@@ -16,13 +16,26 @@ import { AddTransactionModal } from '../components/domain/AddTransactionModal';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { BottomTabProps } from '../navigation/types';
 import * as Haptics from 'expo-haptics';
-import { Search, X, Calendar, Plus, Filter, FileText } from 'lucide-react-native';
+import { Search, X, Calendar, Plus, FileText } from 'lucide-react-native';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 
 export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
   const { transactions, categories, accounts, deleteTransaction, settings, budgets, getTotalNetWorthCents } = useStore();
+
+  const userAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (a) =>
+          a &&
+          a.name?.toLowerCase() !== 'consolidated' &&
+          a.name?.toLowerCase() !== 'all' &&
+          a.id !== 'consolidated' &&
+          a.id !== 'all'
+      ),
+    [accounts]
+  );
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccId, setSelectedAccId] = useState<string | null>(null);
@@ -174,7 +187,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
             </Text>
           </TouchableOpacity>
 
-          {accounts.map((a) => {
+          {userAccounts.map((a) => {
             const isSelected = selectedAccId === a.id;
             return (
               <TouchableOpacity

@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
@@ -27,7 +28,6 @@ import {
   MessageSquare,
   ShieldCheck,
   CheckCircle2,
-  Sparkles,
   Send,
 } from 'lucide-react-native';
 
@@ -120,12 +120,33 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
     }
   };
 
-  const handleSendFeedback = () => {
+  const handleSendFeedback = async () => {
     if (!feedbackText.trim()) {
-      Alert.alert('Empty Note', 'Please enter your thoughts or feedback.');
+      Alert.alert('Empty Note', 'Please enter your thoughts or feedback for the developer.');
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const email = 'support@vaultpace.app';
+    const subject = encodeURIComponent(`VaultPace User Note [${Platform.OS.toUpperCase()}]`);
+    const body = encodeURIComponent(
+      `Hello Developer,\n\nHere is my feedback/note:\n\n${feedbackText.trim()}\n\n---\nPlatform: ${Platform.OS} (v${Platform.Version})\nApp: VaultPace v1.0.0`
+    );
+    const url = `mailto:${email}?subject=${subject}&body=${body}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(
+          'Feedback Recorded',
+          `Thank you! You can also reach the developer directly at: ${email}`
+        );
+      }
+    } catch {
+      Alert.alert('Note Ready', `Please send your feedback to: ${email}`);
+    }
+
     setFeedbackSent(true);
     setFeedbackText('');
     setTimeout(() => setFeedbackSent(false), 5000);
@@ -161,10 +182,15 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+        >
         {/* =========================================================================
             Developer Direct Channels
             ========================================================================= */}
@@ -370,7 +396,8 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
             </Text>
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };

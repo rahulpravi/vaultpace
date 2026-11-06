@@ -26,7 +26,7 @@ export interface Category {
   sort_order?: number;
 }
 
-export type TransactionType = 'expense' | 'income' | 'transfer';
+export type TransactionType = 'expense' | 'income' | 'transfer' | 'borrow' | 'lend';
 
 export interface Transaction {
   id: string;
@@ -38,6 +38,12 @@ export interface Transaction {
   transaction_time?: string; // HH:MM:SS
   notes?: string;
   to_account_id?: string; // For transfers
+  contact_name?: string; // For borrow/lend transactions
+  due_date?: string; // For borrow/lend transactions (YYYY-MM-DD)
+  is_settled?: boolean; // Settlement status for borrow/lend
+  settled_at?: string; // Settlement date
+  settled_account_id?: string; // Wallet used to return or collect debt
+  is_settlement?: boolean; // True if this record is a debt settlement offset
   created_at?: string;
 }
 
@@ -94,6 +100,7 @@ export type BottomTabParamList = {
 export type RootStackParamList = {
   MainTabs: undefined;
   HelpContact: undefined;
+  Debts: undefined;
   AddTransaction: undefined;
   AddAccount: undefined;
   AddBudget: undefined;

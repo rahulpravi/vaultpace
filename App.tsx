@@ -11,27 +11,31 @@ import { useStore } from './src/store/useStore';
 
 function AppContent() {
   const { colors, isDark } = useAppTheme();
-  const { settings, isAppLocked, setIsAppLocked } = useStore();
+  const { settings, isAppLocked, setIsAppLocked, hydrateSecurityPin } = useStore();
 
   useEffect(() => {
+    hydrateSecurityPin();
+
     // If security lock is configured, require authentication on initial startup
     if (settings.biometrics_enabled || settings.pin_lock_enabled) {
       setIsAppLocked(true);
     }
 
     // Lock application when returning from background
+    let lastState = AppState.currentState;
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
+      if (lastState.match(/inactive|background/) && nextAppState === 'active') {
         if (settings.biometrics_enabled || settings.pin_lock_enabled) {
           setIsAppLocked(true);
         }
       }
+      lastState = nextAppState;
     });
 
     return () => {
       subscription.remove();
     };
-  }, [settings.biometrics_enabled, settings.pin_lock_enabled, setIsAppLocked]);
+  }, [hydrateSecurityPin, settings.biometrics_enabled, settings.pin_lock_enabled, setIsAppLocked]);
 
   const navigationTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
