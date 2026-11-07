@@ -44,6 +44,8 @@ export interface Transaction {
   settled_at?: string; // Settlement date
   settled_account_id?: string; // Wallet used to return or collect debt
   is_settlement?: boolean; // True if this record is a debt settlement offset
+  is_recurring?: boolean; // True if repeats monthly
+  recurring_frequency?: 'monthly';
   created_at?: string;
 }
 
@@ -86,6 +88,7 @@ export interface UserSettings {
   last_backup_date?: string;
   notifications_enabled: boolean;
   haptics_enabled: boolean;
+  is_balance_hidden?: boolean;
 }
 
 // React Navigation Types

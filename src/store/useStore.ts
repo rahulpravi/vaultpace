@@ -9,6 +9,7 @@ import {
   Transaction,
   UserSettings,
 } from '../types';
+import { evaluateMathExpression } from '../utils/calculator';
 
 const SECURITY_PIN_STORAGE_KEY = 'vaultpace.security_pin';
 
@@ -72,9 +73,9 @@ export const DEFAULT_ACCOUNTS: Account[] = [
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-1', name: 'Groceries', category_type: 'expense', color: '#047857', icon: 'shopping-bag', is_default: true, sort_order: 1 },
-  { id: 'cat-2', name: 'Dining', category_type: 'expense', color: '#0369a1', icon: 'utensils', is_default: true, sort_order: 2 },
+  { id: 'cat-2', name: 'Food', category_type: 'expense', color: '#0369a1', icon: 'utensils', is_default: true, sort_order: 2 },
   { id: 'cat-3', name: 'Shopping', category_type: 'expense', color: '#be123c', icon: 'tag', is_default: true, sort_order: 3 },
-  { id: 'cat-4', name: 'Transit', category_type: 'expense', color: '#b45309', icon: 'car', is_default: true, sort_order: 4 },
+  { id: 'cat-4', name: 'Travel', category_type: 'expense', color: '#b45309', icon: 'car', is_default: true, sort_order: 4 },
   { id: 'cat-5', name: 'Entertainment', category_type: 'expense', color: '#6d28d9', icon: 'film', is_default: true, sort_order: 5 },
   { id: 'cat-6', name: 'Health & Wellness', category_type: 'expense', color: '#0f766e', icon: 'heart-pulse', is_default: true, sort_order: 6 },
   { id: 'cat-expense-other', name: 'Other', category_type: 'expense', color: '#64748b', icon: 'more-horizontal', is_default: true, sort_order: 7 },
@@ -96,9 +97,9 @@ export const DEFAULT_BUDGETS: Budget[] = [
 
 export const DEFAULT_CATEGORY_LIMITS: Record<string, number> = {
   'cat-1': 2000000, // Groceries ₹20,000.00
-  'cat-2': 600000,  // Dining ₹6,000.00
+  'cat-2': 600000,  // Food ₹6,000.00
   'cat-3': 1000000, // Shopping ₹10,000.00
-  'cat-4': 500000,  // Transit ₹5,000.00
+  'cat-4': 500000,  // Travel ₹5,000.00
   'cat-5': 500000,  // Entertainment ₹5,000.00
   'cat-6': 500000,  // Health & Wellness ₹5,000.00
   'cat-expense-other': 500000, // Other ₹5,000.00
@@ -116,6 +117,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   security_pin: undefined,
   notifications_enabled: true,
   haptics_enabled: true,
+  is_balance_hidden: false,
 };
 
 function calculateBalances(accounts: Account[], transactions: Transaction[]): Account[] {
@@ -234,6 +236,7 @@ interface TrackerStore {
   addBudget: (budget: Omit<Budget, 'id'>) => Budget;
   updateBudget: (id: string, updates: Partial<Budget>) => void;
   deleteBudget: (id: string) => void;
+  setMonthlySpendingCap: (amountCents: number) => void;
 
   // Category Limits
   categoryLimits: Record<string, number>;
@@ -249,9 +252,23 @@ interface TrackerStore {
   updateSettings: (settings: Partial<UserSettings>) => void;
   cleanSlateFinancialRecords: () => void;
   resetToDefaults: () => void;
+  restoreBackupData: (payload: {
+    accounts: Account[];
+    transactions: Transaction[];
+    categories?: Category[];
+    budgets?: Budget[];
+    categoryLimits?: Record<string, number>;
+    settings?: Partial<UserSettings>;
+  }) => void;
 
   // Computed helper
   getTotalNetWorthCents: () => number;
+
+  // Hide balance toggle
+  toggleHideBalance: () => void;
+
+  // Recurring transactions processor
+  processRecurringTransactions: () => void;
 }
 
 export const useStore = create<TrackerStore>()(
@@ -479,6 +496,24 @@ export const useStore = create<TrackerStore>()(
         });
       },
 
+      setMonthlySpendingCap: (amountCents: number) => {
+        const budgets = get().budgets;
+        const targetBudget =
+          budgets.find((b) => b.id === 'b-1' || b.period_type === 'monthly') || budgets[0];
+
+        if (targetBudget) {
+          get().updateBudget(targetBudget.id, { amount_limit: amountCents });
+        } else {
+          get().addBudget({
+            name: 'Monthly Spending',
+            amount_limit: amountCents,
+            period_type: 'monthly',
+            start_date: new Date().toISOString().slice(0, 7) + '-01',
+            notify_threshold: 0.8,
+          });
+        }
+      },
+
       updateSettings: (settingsUpdates) => {
         set({
           settings: {
@@ -522,8 +557,126 @@ export const useStore = create<TrackerStore>()(
         get().cleanSlateFinancialRecords();
       },
 
+      restoreBackupData: (payload) => {
+        set((state) => {
+          // 1. Sanitize & calculate balances for accounts
+          const cleanAccounts = (payload.accounts || []).filter(
+            (a) =>
+              a &&
+              a.name?.toLowerCase() !== 'consolidated' &&
+              a.name?.toLowerCase() !== 'all' &&
+              a.id !== 'consolidated' &&
+              a.id !== 'all'
+          );
+          const validAccounts = cleanAccounts.length > 0 ? cleanAccounts : DEFAULT_ACCOUNTS;
+          const validTransactions = Array.isArray(payload.transactions) ? payload.transactions : [];
+          const calculatedAccounts = calculateBalances(validAccounts, validTransactions);
+
+          // 2. Categories
+          const validCategories =
+            Array.isArray(payload.categories) && payload.categories.length > 0
+              ? payload.categories
+              : state.categories;
+
+          // 3. Budgets
+          const validBudgets = Array.isArray(payload.budgets) ? payload.budgets : state.budgets;
+
+          // 4. Category Limits
+          const validLimits =
+            payload.categoryLimits && typeof payload.categoryLimits === 'object'
+              ? payload.categoryLimits
+              : state.categoryLimits;
+
+          // 5. Settings: Strictly preserve active security_pin, pin_lock_enabled, biometrics_enabled
+          const mergedSettings: UserSettings = {
+            ...state.settings,
+            ...(payload.settings || {}),
+            security_pin: state.settings.security_pin,
+            pin_lock_enabled: state.settings.pin_lock_enabled,
+            biometrics_enabled: state.settings.biometrics_enabled,
+            last_backup_date: new Date().toISOString(),
+          };
+
+          return {
+            accounts: calculatedAccounts,
+            transactions: validTransactions,
+            categories: validCategories,
+            budgets: validBudgets,
+            categoryLimits: validLimits,
+            settings: mergedSettings,
+          };
+        });
+      },
+
       getTotalNetWorthCents: () => {
         return get().accounts.reduce((acc, a) => acc + a.current_balance, 0);
+      },
+
+      toggleHideBalance: () => {
+        set((state) => ({
+          settings: {
+            ...state.settings,
+            is_balance_hidden: !state.settings?.is_balance_hidden,
+          },
+        }));
+      },
+
+      processRecurringTransactions: () => {
+        const state = get();
+        const currentMonthKey = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        const recurringTemplates = state.transactions.filter(
+          (t) => t.is_recurring && t.recurring_frequency === 'monthly'
+        );
+
+        if (recurringTemplates.length === 0) return;
+
+        let hasAdded = false;
+        let newTransactions = [...state.transactions];
+
+        for (const template of recurringTemplates) {
+          const templateDateDay = template.transaction_date.slice(8, 10) || '01';
+          const targetDateForMonth = `${currentMonthKey}-${templateDateDay}`;
+
+          // Check if this recurring item has already been recorded this month
+          const alreadyRecordedThisMonth = newTransactions.some(
+            (t) =>
+              t.account_id === template.account_id &&
+              t.amount === template.amount &&
+              t.transaction_type === template.transaction_type &&
+              t.transaction_date.startsWith(currentMonthKey)
+          );
+
+          if (!alreadyRecordedThisMonth && template.transaction_date < targetDateForMonth) {
+            const recurringTx: Transaction = {
+              id: `tx-rec-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              account_id: template.account_id,
+              category_id: template.category_id,
+              amount: template.amount,
+              transaction_type: template.transaction_type,
+              transaction_date: targetDateForMonth <= todayStr ? targetDateForMonth : todayStr,
+              transaction_time: template.transaction_time || '09:00:00',
+              notes: template.notes
+                ? `${template.notes} (Monthly Recurring)`
+                : 'Monthly Recurring Record',
+              to_account_id: template.to_account_id,
+              is_recurring: true,
+              recurring_frequency: 'monthly',
+              created_at: new Date().toISOString(),
+            };
+            newTransactions = [recurringTx, ...newTransactions];
+            hasAdded = true;
+          }
+        }
+
+        if (hasAdded) {
+          const updatedAccounts = calculateBalances(state.accounts, newTransactions);
+          set({
+            transactions: newTransactions,
+            accounts: updatedAccounts,
+          });
+        }
       },
     }),
     {
@@ -590,6 +743,17 @@ export const useStore = create<TrackerStore>()(
           }
         }
         if (state && Array.isArray(state.categories)) {
+          // Globally migrate legacy default categories: "Dining" -> "Food", "Transit" -> "Travel"
+          state.categories = state.categories.map((c) => {
+            if (c.id === 'cat-2' || c.name.toLowerCase() === 'dining') {
+              return { ...c, name: 'Food' };
+            }
+            if (c.id === 'cat-4' || c.name.toLowerCase() === 'transit') {
+              return { ...c, name: 'Travel' };
+            }
+            return c;
+          });
+
           const hasExpenseOther = state.categories.some(
             (c) => c.category_type === 'expense' && c.name.toLowerCase() === 'other'
           );
@@ -618,6 +782,12 @@ export const useStore = create<TrackerStore>()(
               sort_order: 100,
             });
           }
+        }
+
+        if (state && typeof state.processRecurringTransactions === 'function') {
+          setTimeout(() => {
+            state.processRecurringTransactions();
+          }, 200);
         }
       },
     }
@@ -654,6 +824,12 @@ export function formatCurrency(cents: number, currency?: string): string {
 }
 
 export function parseAmountToCents(amountStr: string): number {
+  if (!amountStr || !amountStr.trim()) return 0;
+  // If user entered a calculation expression (e.g. "500 + 250"), evaluate safely
+  const evaluated = evaluateMathExpression(amountStr);
+  if (evaluated !== null && !isNaN(evaluated) && evaluated >= 0) {
+    return Math.round(evaluated * 100);
+  }
   const cleaned = amountStr.replace(/[^0-9.]/g, '');
   const parsed = parseFloat(cleaned);
   if (isNaN(parsed) || parsed < 0) return 0;

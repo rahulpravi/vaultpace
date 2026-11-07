@@ -4,19 +4,14 @@ import { useAppTheme } from '../../theme/useTheme';
 import { Transaction, Category, Account } from '../../types';
 import { formatCurrency } from '../../store/useStore';
 import * as Haptics from 'expo-haptics';
+import { getCategoryIconComponent } from '../../utils/categoryIcons';
 import {
-  ShoppingBag,
-  Utensils,
-  Tag,
-  Car,
-  Film,
-  HeartPulse,
-  DollarSign,
-  Briefcase,
   ArrowLeftRight,
   Trash2,
   HelpCircle,
   Coins,
+  Repeat,
+  Pencil,
 } from 'lucide-react-native';
 
 interface TransactionRowProps {
@@ -24,6 +19,7 @@ interface TransactionRowProps {
   category?: Category;
   account?: Account;
   onDelete?: (id: string) => void;
+  onPress?: (transaction: Transaction) => void;
 }
 
 export const TransactionRow: React.FC<TransactionRowProps> = ({
@@ -31,6 +27,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
   category,
   account,
   onDelete,
+  onPress,
 }) => {
   const { colors } = useAppTheme();
 
@@ -41,26 +38,8 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
 
   const getCategoryIcon = (iconName?: string) => {
     if (isBorrow || isLend) return Coins;
-    switch (iconName) {
-      case 'shopping-bag':
-        return ShoppingBag;
-      case 'utensils':
-        return Utensils;
-      case 'tag':
-        return Tag;
-      case 'car':
-        return Car;
-      case 'film':
-        return Film;
-      case 'heart-pulse':
-        return HeartPulse;
-      case 'dollar-sign':
-        return DollarSign;
-      case 'briefcase':
-        return Briefcase;
-      default:
-        return isTransfer ? ArrowLeftRight : HelpCircle;
-    }
+    if (isTransfer) return ArrowLeftRight;
+    return getCategoryIconComponent(iconName);
   };
 
   const IconComponent = getCategoryIcon(category?.icon);
@@ -124,23 +103,47 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
     ? `${category.name} • `
     : '';
 
+  const recurringPrefix = transaction.is_recurring ? '↻ Recurring • ' : '';
   const metaString = `${account?.name || 'Wallet'} • ${transaction.transaction_date}`;
 
+  const handleRowPress = () => {
+    if (onPress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onPress(transaction);
+    }
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <TouchableOpacity
+      disabled={!onPress}
+      activeOpacity={onPress ? 0.72 : 1}
+      onPress={onPress ? handleRowPress : undefined}
+      style={[
+        styles.container,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={styles.left}>
         <View style={[styles.iconWrap, { backgroundColor: iconBgColor + '20' }]}>
           <IconComponent size={18} color={iconBgColor} />
         </View>
 
         <View style={styles.info}>
-          <Text
-            style={[styles.title, { color: colors.text }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {titleText}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text
+              style={[styles.title, { color: colors.text, flex: 1 }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {titleText}
+            </Text>
+            {transaction.is_recurring && (
+              <View style={[styles.recurringPill, { backgroundColor: colors.accentLight }]}>
+                <Repeat size={10} color={colors.accent} strokeWidth={2.5} />
+                <Text style={[styles.recurringPillText, { color: colors.accent }]}>Monthly</Text>
+              </View>
+            )}
+          </View>
 
           <Text
             style={[styles.subTitle, { color: colors.textMuted }]}
@@ -169,19 +172,33 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
           {formatCurrency(transaction.amount, account?.currency)}
         </Text>
 
-        {onDelete && (
-          <TouchableOpacity
-            onPress={handleDelete}
-            style={styles.deleteButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel="Delete movement"
-            accessibilityRole="button"
-          >
-            <Trash2 size={15} color={colors.textMuted} />
-          </TouchableOpacity>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {onPress && (
+            <TouchableOpacity
+              onPress={handleRowPress}
+              style={styles.deleteButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Edit movement"
+              accessibilityRole="button"
+            >
+              <Pencil size={13} color={colors.accent} />
+            </TouchableOpacity>
+          )}
+
+          {onDelete && (
+            <TouchableOpacity
+              onPress={handleDelete}
+              style={styles.deleteButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Delete movement"
+              accessibilityRole="button"
+            >
+              <Trash2 size={14} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -243,5 +260,18 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 4,
     borderRadius: 8,
+  },
+  recurringPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  recurringPillText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

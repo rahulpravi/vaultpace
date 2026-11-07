@@ -17,6 +17,7 @@ import {
   PiggyBank,
   CreditCard as CreditCardIcon,
   Briefcase,
+  AlertTriangle,
 } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -275,15 +276,23 @@ export const WalletCreditCard: React.FC<WalletCreditCardProps> = ({
 
             {/* Middle Section: Large Prominent Balance */}
             <View style={styles.middleSection}>
-              <Text
-                style={[
-                  styles.balanceAmount,
-                  isNegative && styles.negativeBalanceText,
-                ]}
-                numberOfLines={1}
-              >
-                {formatCurrency(account.current_balance, account.currency)}
-              </Text>
+              <View style={styles.balanceRow}>
+                <Text
+                  style={[
+                    styles.balanceAmount,
+                    isNegative && styles.negativeBalanceText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formatCurrency(account.current_balance, account.currency)}
+                </Text>
+                {isNegative && (
+                  <View style={styles.negativeBadge}>
+                    <AlertTriangle size={12} color="#fca5a5" strokeWidth={2.4} />
+                    <Text style={styles.negativeBadgeText}>Deficit</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
             {/* Bottom Row */}
@@ -313,9 +322,25 @@ export const WalletCreditCard: React.FC<WalletCreditCardProps> = ({
               <Text style={styles.peekingWalletName} numberOfLines={1}>
                 {account.name}
               </Text>
-              <Text style={styles.peekingBalanceAmount} numberOfLines={1}>
-                {formatCurrency(account.current_balance, account.currency)}
-              </Text>
+              <View style={styles.peekingBalanceRow}>
+                {isNegative && (
+                  <AlertTriangle
+                    size={13}
+                    color="#fca5a5"
+                    strokeWidth={2.4}
+                    style={{ marginRight: 5 }}
+                  />
+                )}
+                <Text
+                  style={[
+                    styles.peekingBalanceAmount,
+                    isNegative && styles.negativeBalanceText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formatCurrency(account.current_balance, account.currency)}
+                </Text>
+              </View>
             </View>
           </View>
         )}
@@ -405,6 +430,30 @@ const styles = StyleSheet.create({
   middleSection: {
     marginVertical: 4,
   },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  negativeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.22)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.45)',
+    gap: 4,
+  },
+  negativeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fca5a5',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   balanceAmount: {
     fontSize: 32,
     fontWeight: '900',
@@ -462,6 +511,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     flex: 1,
     marginRight: 12,
+  },
+  peekingBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   peekingBalanceAmount: {
     fontSize: 15,

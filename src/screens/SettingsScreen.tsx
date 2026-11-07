@@ -22,6 +22,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { SetPinModal } from '../components/security/SetPinModal';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
+import { exportBackup, pickAndRestoreBackup } from '../utils/backupRestore';
 import {
   Sun,
   Moon,
@@ -37,7 +38,12 @@ import {
   KeyRound,
   Fingerprint,
   Coins,
+  CloudUpload,
+  CloudDownload,
+  Tag,
+  Plus,
 } from 'lucide-react-native';
+import { AddCategoryModal } from '../components/domain/AddCategoryModal';
 
 export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -46,17 +52,22 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     settings,
     updateSettings,
     cleanSlateFinancialRecords,
+    restoreBackupData,
     accounts,
     categories,
     budgets,
     transactions,
+    categoryLimits,
     getTotalNetWorthCents,
     setIsAppLocked,
     resetSecurityPin,
   } = useStore();
 
   const [isSetPinModalOpen, setIsSetPinModalOpen] = useState(false);
+  const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
+  const [isRestoringBackup, setIsRestoringBackup] = useState(false);
   const [pinModalConfig, setPinModalConfig] = useState<{
     visible: boolean;
     title: string;
@@ -156,6 +167,118 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     setIsAppLocked(true);
   };
 
+  const handleExportBackup = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (!settings.security_pin) {
+      Alert.alert(
+        'Security PIN Required',
+        'Please set up your 4-digit Security PIN first before exporting an encrypted vault backup.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Set Up PIN', onPress: () => setIsSetPinModalOpen(true) },
+        ]
+      );
+      return;
+    }
+
+    setPinModalConfig({
+      visible: true,
+      title: 'Authorize Backup Export',
+      subtitle:
+        'Enter your 4-digit PIN to export your complete financial vault (Wallets, Transactions, Debts, Limits).',
+      actionType: 'primary',
+      onSuccess: async () => {
+        try {
+          setIsExportingBackup(true);
+          const { fileName } = await exportBackup({
+            accounts,
+            transactions,
+            categories,
+            budgets,
+            categoryLimits,
+            settings,
+          });
+          updateSettings({ last_backup_date: new Date().toISOString() });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (err: any) {
+          Alert.alert('Backup Failed', err?.message || 'Could not export backup file.');
+        } finally {
+          setIsExportingBackup(false);
+        }
+      },
+    });
+  };
+
+  const handleRestoreBackup = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (!settings.security_pin) {
+      Alert.alert(
+        'Security PIN Required',
+        'Please configure your 4-digit Security PIN first before restoring backups.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Set Up PIN', onPress: () => setIsSetPinModalOpen(true) },
+        ]
+      );
+      return;
+    }
+
+    setPinModalConfig({
+      visible: true,
+      title: 'Authorize Vault Restore',
+      subtitle:
+        'Enter your 4-digit PIN to restore data from backup. Restoring will safely replace current records with the backup file.',
+      actionType: 'destructive',
+      onSuccess: async () => {
+        try {
+          setIsRestoringBackup(true);
+          const result = await pickAndRestoreBackup();
+          if (result.canceled) {
+            return;
+          }
+          if (!result.success || !result.data) {
+            Alert.alert('Restore Failed', result.error || 'Invalid or corrupted backup file.');
+            return;
+          }
+
+          const { data, meta } = result;
+          const backupDate = meta?.exported_at
+            ? new Date(meta.exported_at).toLocaleDateString()
+            : 'Unknown date';
+
+          Alert.alert(
+            'Confirm Restore',
+            `Backup Date: ${backupDate}\n` +
+              `Wallets: ${meta?.accountsCount || 0}\n` +
+              `Transactions: ${meta?.transactionsCount || 0} (${meta?.debtsCount || 0} loan records)\n\n` +
+              `Do you want to restore these records into your VaultPace vault?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Restore Now',
+                style: 'destructive',
+                onPress: () => {
+                  restoreBackupData(data);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  Alert.alert(
+                    'Vault Restored',
+                    'All wallets, transactions, debts/IOUs, and category limits have been restored successfully!'
+                  );
+                },
+              },
+            ]
+          );
+        } catch (err: any) {
+          Alert.alert('Restore Error', err?.message || 'Failed to restore backup file.');
+        } finally {
+          setIsRestoringBackup(false);
+        }
+      },
+    });
+  };
+
   const handleExportPdf = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPinModalConfig({
@@ -181,29 +304,6 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
         }
       },
     });
-  };
-
-  const handleExportJSON = async () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const data = {
-        version: '2.0',
-        platform: 'mobile',
-        exported_at: new Date().toISOString(),
-        accounts,
-        categories,
-        budgets,
-        transactions,
-        settings,
-      };
-
-      await Share.share({
-        title: 'VaultPace Backup',
-        message: JSON.stringify(data, null, 2),
-      });
-    } catch {
-      Alert.alert('Export Error', 'Unable to share JSON backup.');
-    }
   };
 
   const handleExportCSV = async () => {
@@ -514,6 +614,51 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
         </View>
 
         {/* =========================================================================
+            Categories Management
+            ========================================================================= */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+            CATEGORIES & GROUPS
+          </Text>
+
+          <View
+            style={[
+              styles.cardBox,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.cardRow}>
+              <View style={styles.iconWithLabel}>
+                <Tag size={20} color={colors.accent} />
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.rowTitle, { color: colors.text }]}>Custom Categories</Text>
+                  <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>
+                    {categories.length} total categories ({categories.filter((c) => !c.is_default).length} custom)
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setIsAddCategoryModalOpen(true);
+                }}
+                style={[
+                  styles.categoryActionBtn,
+                  { backgroundColor: colors.accentLight, borderColor: colors.accent + '30' },
+                ]}
+              >
+                <Plus size={13} color={colors.accent} strokeWidth={2.5} />
+                <Text style={[styles.categoryActionBtnText, { color: colors.accent }]}>
+                  + Add Category
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* =========================================================================
             Authentication & Security
             ========================================================================= */}
         <View style={styles.section}>
@@ -616,6 +761,71 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
         </View>
 
         {/* =========================================================================
+            Offline-First Zero-Config Backup & Restore
+            ========================================================================= */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+            BACKUP & RESTORE (OFFLINE-FIRST)
+          </Text>
+
+          <View
+            style={[
+              styles.cardBox,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            {/* Export Backup */}
+            <TouchableOpacity
+              onPress={handleExportBackup}
+              disabled={isExportingBackup}
+              style={styles.actionRow}
+            >
+              <View style={styles.actionLeft}>
+                <CloudUpload size={20} color={colors.accent} />
+                <View style={{ flex: 1, paddingRight: 6 }}>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>
+                    {isExportingBackup ? 'Preparing Backup...' : 'Export Backup'}
+                  </Text>
+                  <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>
+                    Save offline JSON vault snapshot to Google Drive or local storage
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {settings.last_backup_date ? (
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.accent }}>
+                    {new Date(settings.last_backup_date).toLocaleDateString()}
+                  </Text>
+                ) : null}
+                <ChevronRight size={16} color={colors.textMuted} />
+              </View>
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* Restore Backup */}
+            <TouchableOpacity
+              onPress={handleRestoreBackup}
+              disabled={isRestoringBackup}
+              style={styles.actionRow}
+            >
+              <View style={styles.actionLeft}>
+                <CloudDownload size={20} color={colors.accent} />
+                <View style={{ flex: 1, paddingRight: 6 }}>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>
+                    {isRestoringBackup ? 'Reading File...' : 'Restore Backup'}
+                  </Text>
+                  <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>
+                    Select & restore backup file directly from Google Drive or device
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* =========================================================================
             Data Portability & PDF Export
             ========================================================================= */}
         <View style={styles.section}>
@@ -667,24 +877,6 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
                   </Text>
                   <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>
                     Formatted document with balances & transaction history
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight size={16} color={colors.textMuted} />
-            </TouchableOpacity>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            {/* Export JSON */}
-            <TouchableOpacity onPress={handleExportJSON} style={styles.actionRow}>
-              <View style={styles.actionLeft}>
-                <Download size={18} color={colors.accent} />
-                <View>
-                  <Text style={[styles.actionTitle, { color: colors.text }]}>
-                    Export JSON Data Backup
-                  </Text>
-                  <Text style={[styles.actionSubtitle, { color: colors.textMuted }]}>
-                    Raw data snapshot for safe offline archive
                   </Text>
                 </View>
               </View>
@@ -766,6 +958,12 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
         actionType={pinModalConfig.actionType}
         onSuccess={pinModalConfig.onSuccess}
         onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
+      />
+
+      {/* Add Custom Category Modal */}
+      <AddCategoryModal
+        visible={isAddCategoryModalOpen}
+        onClose={() => setIsAddCategoryModalOpen(false)}
       />
     </View>
   );
@@ -952,5 +1150,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     marginTop: 2,
+  },
+  categoryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  categoryActionBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

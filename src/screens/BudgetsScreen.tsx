@@ -19,13 +19,15 @@ import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 import { BottomTabProps } from '../navigation/types';
-import { Category } from '../types';
+import { Category, Budget } from '../types';
 import * as Haptics from 'expo-haptics';
-import { Target, Pencil, X, Check, BarChart3, FileDown } from 'lucide-react-native';
+import { Target, Pencil, X, Check, BarChart3, FileDown, Plus } from 'lucide-react-native';
 import {
   CustomAmountKeypad,
   AmountDisplay,
 } from '../components/common/CustomAmountKeypad';
+import { EditMonthlyCapModal } from '../components/domain/EditMonthlyCapModal';
+import { AddCategoryModal } from '../components/domain/AddCategoryModal';
 
 export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const insets = useSafeAreaInsets();
@@ -43,6 +45,8 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newLimitStr, setNewLimitStr] = useState('');
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
@@ -153,10 +157,18 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
       >
         {/* Main Spending Progress Cards */}
         {budgets.map((b) => (
-          <BudgetProgressCard key={b.id} budget={b} transactions={transactions} />
+          <BudgetProgressCard
+            key={b.id}
+            budget={b}
+            transactions={transactions}
+            onPressEdit={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setEditingBudget(b);
+            }}
+          />
         ))}
 
-        {/* Category Allowances Header */}
+        {/* Category Allowances Header with + Add Category Button */}
         <View style={styles.sectionHeader}>
           <View style={styles.titleWithIcon}>
             <Target size={16} color={colors.accent} />
@@ -164,7 +176,22 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
               Category Allowances
             </Text>
           </View>
-          <Text style={[styles.cycleText, { color: colors.textMuted }]}>Monthly Caps</Text>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowAddCategoryModal(true);
+            }}
+            style={[
+              styles.addCategoryBtn,
+              { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+            ]}
+          >
+            <Plus size={13} color={colors.accent} strokeWidth={2.5} />
+            <Text style={[styles.addCategoryBtnText, { color: colors.accent }]}>
+              + Category
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Category Cards with Dynamic Limit Editing */}
@@ -382,6 +409,20 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         onSuccess={handlePinExportSuccess}
         onClose={() => setIsPinModalOpen(false)}
       />
+
+      {/* Edit Overall Monthly Spending Cap Modal */}
+      <EditMonthlyCapModal
+        visible={Boolean(editingBudget)}
+        budget={editingBudget}
+        onClose={() => setEditingBudget(null)}
+      />
+
+      {/* Add Custom Category Modal */}
+      <AddCategoryModal
+        visible={showAddCategoryModal}
+        initialType="expense"
+        onClose={() => setShowAddCategoryModal(false)}
+      />
     </View>
   );
 };
@@ -457,6 +498,19 @@ const styles = StyleSheet.create({
   cycleText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  addCategoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  addCategoryBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   categoryList: {
     gap: 12,

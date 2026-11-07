@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
@@ -15,14 +16,34 @@ import { TransactionRow } from '../components/domain/TransactionRow';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { BottomTabProps } from '../navigation/types';
+import { Transaction } from '../types';
 import * as Haptics from 'expo-haptics';
-import { Search, X, Calendar, Plus, FileText } from 'lucide-react-native';
+import {
+  Search,
+  X,
+  Calendar,
+  Plus,
+  FileText,
+  RotateCcw,
+  SlidersHorizontal,
+  Layers,
+  Wallet,
+  Tag,
+} from 'lucide-react-native';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 
 export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const { transactions, categories, accounts, deleteTransaction, settings, budgets, getTotalNetWorthCents } = useStore();
+  const {
+    transactions,
+    categories,
+    accounts,
+    deleteTransaction,
+    settings,
+    budgets,
+    getTotalNetWorthCents,
+  } = useStore();
 
   const userAccounts = useMemo(
     () =>
@@ -37,32 +58,230 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     [accounts]
   );
 
+  // Deduplicate categories by trimmed name so "Other" (or any duplicate) only appears once
+  const deduplicatedCategories = useMemo(() => {
+    const seenNames = new Set<string>();
+    const result: typeof categories = [];
+    for (const cat of categories) {
+      const normName = cat.name.trim().toLowerCase();
+      if (!seenNames.has(normName)) {
+        seenNames.add(normName);
+        result.push(cat);
+      }
+    }
+    return result;
+  }, [categories]);
+
+  // Search & Active Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccId, setSelectedAccId] = useState<string | null>(null);
-  const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
+  const [selectedCatName, setSelectedCatName] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+
+  // Modal temporary filter state
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [tempMonth, setTempMonth] = useState<string | null>(null);
+  const [tempType, setTempType] = useState<string | null>(null);
+  const [tempAccId, setTempAccId] = useState<string | null>(null);
+  const [tempCatName, setTempCatName] = useState<string | null>(null);
+
+  // Other Modals
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
-  // Filtered transactions
+  // Available distinct months extracted from all transactions
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    set.add(currentMonth);
+    transactions.forEach((tx) => {
+      if (tx.transaction_date && tx.transaction_date.length >= 7) {
+        set.add(tx.transaction_date.slice(0, 7));
+      }
+    });
+    return Array.from(set).sort().reverse();
+  }, [transactions]);
+
+  const formatMonth = (mStr: string) => {
+    const [y, m] = mStr.split('-');
+    const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  const getTypeLabel = (t: string | null) => {
+    switch (t) {
+      case 'expense':
+        return 'Expenses';
+      case 'income':
+        return 'Income';
+      case 'transfer':
+        return 'Transfers';
+      case 'debt':
+        return 'Debts / Loans';
+      default:
+        return 'All Types';
+    }
+  };
+
+  // Count active modal filters (excluding raw search query)
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedMonth) count++;
+    if (selectedType) count++;
+    if (selectedAccId) count++;
+    if (selectedCatName) count++;
+    return count;
+  }, [selectedMonth, selectedType, selectedAccId, selectedCatName]);
+
+  // Count active modal temp filters
+  const tempActiveCount = useMemo(() => {
+    let count = 0;
+    if (tempMonth) count++;
+    if (tempType) count++;
+    if (tempAccId) count++;
+    if (tempCatName) count++;
+    return count;
+  }, [tempMonth, tempType, tempAccId, tempCatName]);
+
+  const clearAllFilters = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSearchQuery('');
+    setSelectedMonth(null);
+    setSelectedType(null);
+    setSelectedAccId(null);
+    setSelectedCatName(null);
+  };
+
+  const openFilterModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTempMonth(selectedMonth);
+    setTempType(selectedType);
+    setTempAccId(selectedAccId);
+    setTempCatName(selectedCatName);
+    setIsFilterModalOpen(true);
+  };
+
+  const applyFilters = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedMonth(tempMonth);
+    setSelectedType(tempType);
+    setSelectedAccId(tempAccId);
+    setSelectedCatName(tempCatName);
+    setIsFilterModalOpen(false);
+  };
+
+  const resetTempFilters = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTempMonth(null);
+    setTempType(null);
+    setTempAccId(null);
+    setTempCatName(null);
+  };
+
+  // Filtered transactions for main screen
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
+      // 1. Month filter
+      if (selectedMonth && !tx.transaction_date.startsWith(selectedMonth)) {
+        return false;
+      }
+
+      // 2. Type filter
+      if (selectedType) {
+        if (selectedType === 'debt') {
+          if (tx.transaction_type !== 'borrow' && tx.transaction_type !== 'lend') return false;
+        } else if (tx.transaction_type !== selectedType) {
+          return false;
+        }
+      }
+
+      // 3. Wallet / Account filter
       if (selectedAccId && tx.account_id !== selectedAccId && tx.to_account_id !== selectedAccId) {
         return false;
       }
-      if (selectedCatId && tx.category_id !== selectedCatId) {
-        return false;
+
+      // 4. Category filter by name
+      if (selectedCatName) {
+        const cat = categories.find((c) => c.id === tx.category_id);
+        if (!cat || cat.name.toLowerCase() !== selectedCatName.toLowerCase()) {
+          return false;
+        }
+      }
+
+      // 5. Search query (notes, contact name, category, wallet name, amount)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const cat = categories.find((c) => c.id === tx.category_id);
+        const acc = accounts.find((a) => a.id === tx.account_id);
+        const toAcc = tx.to_account_id ? accounts.find((a) => a.id === tx.to_account_id) : null;
+        const matchesNote = tx.notes?.toLowerCase().includes(q);
+        const matchesContact = tx.contact_name?.toLowerCase().includes(q);
+        const matchesCat = cat?.name.toLowerCase().includes(q);
+        const matchesAcc =
+          acc?.name.toLowerCase().includes(q) || toAcc?.name.toLowerCase().includes(q);
+        const matchesAmount = (tx.amount / 100).toFixed(2).includes(q);
+        if (!matchesNote && !matchesContact && !matchesCat && !matchesAcc && !matchesAmount) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [
+    transactions,
+    categories,
+    accounts,
+    searchQuery,
+    selectedCatName,
+    selectedAccId,
+    selectedMonth,
+    selectedType,
+  ]);
+
+  // Dynamic preview match count for the Filter Modal
+  const tempMatchCount = useMemo(() => {
+    return transactions.filter((tx) => {
+      if (tempMonth && !tx.transaction_date.startsWith(tempMonth)) return false;
+      if (tempType) {
+        if (tempType === 'debt') {
+          if (tx.transaction_type !== 'borrow' && tx.transaction_type !== 'lend') return false;
+        } else if (tx.transaction_type !== tempType) {
+          return false;
+        }
+      }
+      if (tempAccId && tx.account_id !== tempAccId && tx.to_account_id !== tempAccId) return false;
+      if (tempCatName) {
+        const cat = categories.find((c) => c.id === tx.category_id);
+        if (!cat || cat.name.toLowerCase() !== tempCatName.toLowerCase()) return false;
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const cat = categories.find((c) => c.id === tx.category_id);
+        const acc = accounts.find((a) => a.id === tx.account_id);
+        const toAcc = tx.to_account_id ? accounts.find((a) => a.id === tx.to_account_id) : null;
         const matchesNote = tx.notes?.toLowerCase().includes(q);
+        const matchesContact = tx.contact_name?.toLowerCase().includes(q);
         const matchesCat = cat?.name.toLowerCase().includes(q);
+        const matchesAcc =
+          acc?.name.toLowerCase().includes(q) || toAcc?.name.toLowerCase().includes(q);
         const matchesAmount = (tx.amount / 100).toFixed(2).includes(q);
-        if (!matchesNote && !matchesCat && !matchesAmount) return false;
+        if (!matchesNote && !matchesContact && !matchesCat && !matchesAcc && !matchesAmount) {
+          return false;
+        }
       }
       return true;
-    });
-  }, [transactions, categories, searchQuery, selectedCatId, selectedAccId]);
+    }).length;
+  }, [
+    transactions,
+    tempMonth,
+    tempType,
+    tempAccId,
+    tempCatName,
+    searchQuery,
+    categories,
+    accounts,
+  ]);
 
   // Group by date
   const groupedTransactions = useMemo(() => {
@@ -106,7 +325,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
         <View>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Audit Ledger</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-            {filtered.length} of {transactions.length} movements
+            {filtered.length} of {transactions.length} records
           </Text>
         </View>
 
@@ -140,137 +359,188 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
       >
-        {/* Search Bar */}
-        <View
-          style={[
-            styles.searchWrap,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Search size={18} color={colors.textMuted} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search notes, categories, amounts..."
-            placeholderTextColor={colors.textMuted + '90'}
-            style={[styles.searchInput, { color: colors.text }]}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <X size={16} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
+        {/* Compact Search & Filter Bar */}
+        <View style={styles.searchAndFilterRow}>
+          <View
+            style={[
+              styles.searchWrap,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <Search size={18} color={colors.textMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search notes, contact, category, wallet, amount..."
+              placeholderTextColor={colors.textMuted + '90'}
+              style={[styles.searchInput, { color: colors.text }]}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={openFilterModal}
+            activeOpacity={0.7}
+            style={[
+              styles.filterBtn,
+              {
+                backgroundColor: activeFilterCount > 0 ? colors.accentLight : colors.surface,
+                borderColor: activeFilterCount > 0 ? colors.accent : colors.border,
+              },
+            ]}
+          >
+            <SlidersHorizontal
+              size={18}
+              color={activeFilterCount > 0 ? colors.accent : colors.text}
+              strokeWidth={2.2}
+            />
+            {activeFilterCount > 0 && (
+              <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
+                <Text style={[styles.filterBadgeText, { color: colors.onAccent }]}>
+                  {activeFilterCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Account Filter Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.selectionAsync();
-              setSelectedAccId(null);
-            }}
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor: selectedAccId === null ? colors.accent : colors.surface,
-                borderColor: selectedAccId === null ? colors.accent : colors.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                { color: selectedAccId === null ? colors.onAccent : colors.text },
-              ]}
+        {/* Compact Active Filter Pills Row */}
+        {activeFilterCount > 0 && (
+          <View style={styles.activePillsContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activePillsContent}
             >
-              All Wallets
-            </Text>
-          </TouchableOpacity>
-
-          {userAccounts.map((a) => {
-            const isSelected = selectedAccId === a.id;
-            return (
-              <TouchableOpacity
-                key={a.id}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setSelectedAccId(isSelected ? null : a.id);
-                }}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isSelected ? colors.accent : colors.surface,
-                    borderColor: isSelected ? colors.accent : colors.border,
-                  },
-                ]}
-              >
-                <Text
+              {/* Month Pill */}
+              {selectedMonth && (
+                <View
                   style={[
-                    styles.filterChipText,
-                    { color: isSelected ? colors.onAccent : colors.text },
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
                   ]}
                 >
-                  {a.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Calendar size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {formatMonth(selectedMonth)}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedMonth(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
 
-        {/* Category Filter Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.selectionAsync();
-              setSelectedCatId(null);
-            }}
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor: selectedCatId === null ? colors.accent : colors.surface,
-                borderColor: selectedCatId === null ? colors.accent : colors.border,
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                { color: selectedCatId === null ? colors.onAccent : colors.text },
-              ]}
-            >
-              All Categories
-            </Text>
-          </TouchableOpacity>
-
-          {categories.map((c) => {
-            const isSelected = selectedCatId === c.id;
-            return (
-              <TouchableOpacity
-                key={c.id}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setSelectedCatId(isSelected ? null : c.id);
-                }}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isSelected ? colors.accent : colors.surface,
-                    borderColor: isSelected ? colors.accent : colors.border,
-                  },
-                ]}
-              >
-                <Text
+              {/* Type Pill */}
+              {selectedType && (
+                <View
                   style={[
-                    styles.filterChipText,
-                    { color: isSelected ? colors.onAccent : colors.text },
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
                   ]}
                 >
-                  {c.name}
-                </Text>
+                  <Layers size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {getTypeLabel(selectedType)}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedType(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Wallet Pill */}
+              {selectedAccId && (
+                <View
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
+                  ]}
+                >
+                  <Wallet size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {userAccounts.find((a) => a.id === selectedAccId)?.name || 'Wallet'}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedAccId(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Category Pill */}
+              {selectedCatName && (
+                <View
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
+                  ]}
+                >
+                  <Tag size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {selectedCatName}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedCatName(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Reset All Pill */}
+              <TouchableOpacity
+                onPress={clearAllFilters}
+                style={[
+                  styles.resetPill,
+                  { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                ]}
+              >
+                <RotateCcw size={11} color={colors.textMuted} />
+                <Text style={[styles.resetPillText, { color: colors.textMuted }]}>Reset</Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            </ScrollView>
+          </View>
+        )}
 
         {/* Grouped Ledger List */}
         {groupedTransactions.length === 0 ? (
@@ -280,7 +550,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Movements Found</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Records Found</Text>
             <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
               Try adjusting your search filters or record a new transaction.
             </Text>
@@ -305,6 +575,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                   category={categories.find((c) => c.id === tx.category_id)}
                   account={accounts.find((a) => a.id === tx.account_id)}
                   onDelete={deleteTransaction}
+                  onPress={(item) => setEditingTransaction(item)}
                 />
               ))}
             </View>
@@ -312,10 +583,345 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
         )}
       </ScrollView>
 
+      {/* Collapsible Filter Bottom Sheet / Modal */}
+      <Modal
+        visible={isFilterModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsFilterModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdropTouch}
+            activeOpacity={1}
+            onPress={() => setIsFilterModalOpen(false)}
+          />
+          <View
+            style={[
+              styles.filterSheetContainer,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                paddingBottom: Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
+            {/* Sheet Handle */}
+            <View style={styles.sheetHandleWrap}>
+              <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            </View>
+
+            {/* Modal Header */}
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[styles.modalHeaderTitle, { color: colors.text }]}>
+                    Filter Records
+                  </Text>
+                  {tempActiveCount > 0 && (
+                    <View style={[styles.modalCountBadge, { backgroundColor: colors.accentLight }]}>
+                      <Text style={[styles.modalCountBadgeText, { color: colors.accent }]}>
+                        {tempActiveCount} active
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.modalHeaderSubtitle, { color: colors.textMuted }]}>
+                  Narrow down audit ledger by multiple criteria
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setIsFilterModalOpen(false)}
+                style={[styles.modalCloseBtn, { backgroundColor: colors.surfaceSubtle }]}
+              >
+                <X size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Filter Sections ScrollView */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              {/* Section 1: Month / Period */}
+              {availableMonths.length > 0 && (
+                <View style={styles.filterSection}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Calendar size={13} color={colors.accent} />
+                    <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                      MONTH / PERIOD
+                    </Text>
+                  </View>
+                  <View style={styles.chipsWrap}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setTempMonth(null);
+                      }}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor:
+                            tempMonth === null ? colors.accent : colors.surfaceSubtle,
+                          borderColor: tempMonth === null ? colors.accent : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          { color: tempMonth === null ? colors.onAccent : colors.text },
+                        ]}
+                      >
+                        All Months
+                      </Text>
+                    </TouchableOpacity>
+                    {availableMonths.map((m) => {
+                      const isSelected = tempMonth === m;
+                      return (
+                        <TouchableOpacity
+                          key={m}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setTempMonth(isSelected ? null : m);
+                          }}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                              borderColor: isSelected ? colors.accent : colors.border,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: isSelected ? colors.onAccent : colors.text },
+                            ]}
+                          >
+                            {formatMonth(m)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Section 2: Transaction Type */}
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Layers size={13} color={colors.accent} />
+                  <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                    TRANSACTION TYPE
+                  </Text>
+                </View>
+                <View style={styles.chipsWrap}>
+                  {[
+                    { id: null, label: 'All Types' },
+                    { id: 'expense', label: 'Expenses' },
+                    { id: 'income', label: 'Income' },
+                    { id: 'transfer', label: 'Transfers' },
+                    { id: 'debt', label: 'Debts / Loans' },
+                  ].map((item) => {
+                    const isSelected = tempType === item.id;
+                    return (
+                      <TouchableOpacity
+                        key={item.label}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setTempType(item.id);
+                        }}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                            borderColor: isSelected ? colors.accent : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: isSelected ? colors.onAccent : colors.text },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Section 3: Wallet / Account */}
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Wallet size={13} color={colors.accent} />
+                  <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                    WALLET / ACCOUNT
+                  </Text>
+                </View>
+                <View style={styles.chipsWrap}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setTempAccId(null);
+                    }}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor:
+                          tempAccId === null ? colors.accent : colors.surfaceSubtle,
+                        borderColor: tempAccId === null ? colors.accent : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: tempAccId === null ? colors.onAccent : colors.text },
+                      ]}
+                    >
+                      All Wallets
+                    </Text>
+                  </TouchableOpacity>
+                  {userAccounts.map((a) => {
+                    const isSelected = tempAccId === a.id;
+                    return (
+                      <TouchableOpacity
+                        key={a.id}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setTempAccId(isSelected ? null : a.id);
+                        }}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                            borderColor: isSelected ? colors.accent : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: isSelected ? colors.onAccent : colors.text },
+                          ]}
+                        >
+                          {a.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Section 4: Category (Deduplicated) */}
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <Tag size={13} color={colors.accent} />
+                  <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+                    CATEGORY
+                  </Text>
+                </View>
+                <View style={styles.chipsWrap}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setTempCatName(null);
+                    }}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor:
+                          tempCatName === null ? colors.accent : colors.surfaceSubtle,
+                        borderColor: tempCatName === null ? colors.accent : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: tempCatName === null ? colors.onAccent : colors.text },
+                      ]}
+                    >
+                      All Categories
+                    </Text>
+                  </TouchableOpacity>
+                  {deduplicatedCategories.map((c) => {
+                    const isSelected = tempCatName?.toLowerCase() === c.name.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={c.name}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setTempCatName(isSelected ? null : c.name);
+                        }}
+                        style={[
+                          styles.chip,
+                          {
+                            backgroundColor: isSelected ? colors.accent : colors.surfaceSubtle,
+                            borderColor: isSelected ? colors.accent : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            { color: isSelected ? colors.onAccent : colors.text },
+                          ]}
+                        >
+                          {c.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Modal Bottom Actions */}
+            <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+              <TouchableOpacity
+                onPress={resetTempFilters}
+                style={[
+                  styles.resetBtn,
+                  { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                ]}
+              >
+                <RotateCcw size={15} color={colors.text} />
+                <Text style={[styles.resetBtnText, { color: colors.text }]}>Reset All</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={applyFilters}
+                style={[styles.applyBtn, { backgroundColor: colors.accent }]}
+              >
+                <Text style={[styles.applyBtnText, { color: colors.onAccent }]}>
+                  {tempMatchCount === 0
+                    ? 'No Records (Apply)'
+                    : `Show ${tempMatchCount} ${tempMatchCount === 1 ? 'Record' : 'Records'}`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Add Transaction Modal */}
       <AddTransactionModal
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+      />
+
+      {/* Edit Transaction Modal */}
+      <AddTransactionModal
+        visible={Boolean(editingTransaction)}
+        initialTransaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
       />
 
       {/* Reusable Security PIN Verification Modal */}
@@ -373,14 +979,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
+  searchAndFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
   searchWrap: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     height: 46,
     borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 12,
     gap: 10,
   },
   searchInput: {
@@ -388,20 +1000,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  filterScroll: {
-    flexDirection: 'row',
-    marginBottom: 10,
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  filterChip: {
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 12,
+  filterBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
     borderWidth: 1,
-    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  filterChipText: {
+  filterBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  activePillsContainer: {
+    marginBottom: 12,
+  },
+  activePillsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 20,
+  },
+  activePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 11,
+    borderWidth: 1,
+  },
+  activePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  resetPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 11,
+    borderWidth: 1,
+  },
+  resetPillText: {
     fontSize: 11,
     fontWeight: '700',
   },
@@ -444,5 +1098,133 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalBackdropTouch: {
+    flex: 1,
+  },
+  filterSheetContainer: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    maxHeight: '82%',
+  },
+  sheetHandleWrap: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  modalHeaderSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCountBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  modalCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  modalScroll: {
+    paddingHorizontal: 20,
+  },
+  modalScrollContent: {
+    paddingVertical: 14,
+    gap: 18,
+  },
+  filterSection: {
+    gap: 8,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  chipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  resetBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  applyBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

@@ -1,18 +1,21 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { Budget, Transaction } from '../../types';
 import { formatCurrency } from '../../store/useStore';
-import { AlertTriangle, CheckCircle } from 'lucide-react-native';
+import { AlertTriangle, CheckCircle, Pencil } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 interface BudgetProgressCardProps {
   budget: Budget;
   transactions: Transaction[];
+  onPressEdit?: () => void;
 }
 
 export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
   budget,
   transactions,
+  onPressEdit,
 }) => {
   const { colors } = useAppTheme();
 
@@ -28,15 +31,24 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
     })
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const ratio = Math.min(spentCents / budget.amount_limit, 1);
   const percentage = Math.round((spentCents / budget.amount_limit) * 100);
   const isOver = spentCents > budget.amount_limit;
   const isNear = percentage >= (budget.notify_threshold || 0.8) * 100;
 
   const barColor = isOver ? colors.danger : isNear ? colors.warning : colors.accent;
 
+  const handleEditPress = () => {
+    if (onPressEdit) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onPressEdit();
+    }
+  };
+
   return (
-    <View
+    <TouchableOpacity
+      disabled={!onPressEdit}
+      activeOpacity={onPressEdit ? 0.85 : 1}
+      onPress={onPressEdit ? handleEditPress : undefined}
       style={[
         styles.card,
         {
@@ -46,33 +58,51 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
       ]}
     >
       <View style={styles.headerRow}>
-        <View>
+        <View style={styles.titleColumn}>
           <Text style={[styles.budgetName, { color: colors.text }]}>{budget.name}</Text>
           <Text style={[styles.budgetPeriod, { color: colors.textMuted }]}>
             {budget.period_type.toUpperCase()} CAP
           </Text>
         </View>
 
-        <View
-          style={[
-            styles.badge,
-            {
-              backgroundColor: isOver
-                ? colors.dangerLight
-                : isNear
-                ? colors.warningLight
-                : colors.accentLight,
-            },
-          ]}
-        >
-          {isOver || isNear ? (
-            <AlertTriangle size={12} color={barColor} />
-          ) : (
-            <CheckCircle size={12} color={barColor} />
+        <View style={styles.headerRightGroup}>
+          {onPressEdit && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleEditPress}
+              style={[
+                styles.editBtn,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${budget.name} cap`}
+            >
+              <Pencil size={11} color={colors.accent} />
+              <Text style={[styles.editBtnText, { color: colors.accent }]}>Edit</Text>
+            </TouchableOpacity>
           )}
-          <Text style={[styles.badgeText, { color: barColor }]}>
-            {isOver ? 'Exceeded' : isNear ? 'Warning' : 'On Track'}
-          </Text>
+
+          <View
+            style={[
+              styles.badge,
+              {
+                backgroundColor: isOver
+                  ? colors.dangerLight
+                  : isNear
+                  ? colors.warningLight
+                  : colors.accentLight,
+              },
+            ]}
+          >
+            {isOver || isNear ? (
+              <AlertTriangle size={12} color={barColor} />
+            ) : (
+              <CheckCircle size={12} color={barColor} />
+            )}
+            <Text style={[styles.badgeText, { color: barColor }]}>
+              {isOver ? 'Exceeded' : isNear ? 'Warning' : 'On Track'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -99,7 +129,7 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
 
         <Text style={[styles.percentText, { color: barColor }]}>{percentage}%</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -120,6 +150,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 14,
+  },
+  titleColumn: {
+    flex: 1,
+  },
+  headerRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  editBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   budgetName: {
     fontSize: 15,

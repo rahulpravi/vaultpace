@@ -15,7 +15,9 @@ import { AppleWalletCardStack } from '../components/domain/AppleWalletCardStack'
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
+import { EditMonthlyCapModal } from '../components/domain/EditMonthlyCapModal';
 import { BottomTabProps } from '../navigation/types';
+import { Transaction } from '../types';
 import * as Haptics from 'expo-haptics';
 import {
   ShieldCheck,
@@ -24,6 +26,8 @@ import {
   Plus,
   ArrowRight,
   Coins,
+  Eye,
+  EyeOff,
 } from 'lucide-react-native';
 
 export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) => {
@@ -37,10 +41,13 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
     settings,
     getTotalNetWorthCents,
     deleteTransaction,
+    toggleHideBalance,
   } = useStore();
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditMonthlyCapOpen, setIsEditMonthlyCapOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const totalNetWorth = getTotalNetWorthCents();
 
@@ -162,14 +169,37 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             Top Net Worth Summary / Active Wallet Balance
             ========================================================================= */}
         <View style={styles.topHeader}>
-          <Text style={[styles.netWorthLabel, { color: colors.textMuted }]}>
-            {selectedAccount ? `${selectedAccount.name.toUpperCase()} BALANCE` : 'TOTAL NET WORTH'}
-          </Text>
+          <View style={styles.netWorthHeaderRow}>
+            <Text style={[styles.netWorthLabel, { color: colors.textMuted }]}>
+              {selectedAccount ? `${selectedAccount.name.toUpperCase()} BALANCE` : 'TOTAL NET WORTH'}
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                toggleHideBalance();
+              }}
+              style={[
+                styles.eyeBtn,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={settings.is_balance_hidden ? 'Show Balance' : 'Hide Balance'}
+            >
+              {settings.is_balance_hidden ? (
+                <EyeOff size={14} color={colors.accent} />
+              ) : (
+                <Eye size={14} color={colors.textMuted} />
+              )}
+            </TouchableOpacity>
+          </View>
           <Text style={[styles.netWorthAmount, { color: colors.text }]}>
-            {formatCurrency(
-              selectedAccount ? selectedAccount.current_balance : totalNetWorth,
-              selectedAccount?.currency || settings.default_currency
-            )}
+            {settings.is_balance_hidden
+              ? '₹ •••••••'
+              : formatCurrency(
+                  selectedAccount ? selectedAccount.current_balance : totalNetWorth,
+                  selectedAccount?.currency || settings.default_currency
+                )}
           </Text>
         </View>
 
@@ -189,7 +219,9 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View>
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>INCOME</Text>
               <Text style={[styles.metricValue, { color: colors.success }]}>
-                +{formatCurrency(totalIncome, settings.default_currency)}
+                {settings.is_balance_hidden
+                  ? '••••••'
+                  : `+${formatCurrency(totalIncome, settings.default_currency)}`}
               </Text>
             </View>
           </View>
@@ -203,7 +235,9 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View>
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>SPENT</Text>
               <Text style={[styles.metricValue, { color: colors.danger }]}>
-                -{formatCurrency(totalSpent, settings.default_currency)}
+                {settings.is_balance_hidden
+                  ? '••••••'
+                  : `-${formatCurrency(totalSpent, settings.default_currency)}`}
               </Text>
             </View>
           </View>
@@ -287,7 +321,11 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               </TouchableOpacity>
             </View>
 
-            <BudgetProgressCard budget={activeBudget} transactions={filteredTransactions} />
+            <BudgetProgressCard
+              budget={activeBudget}
+              transactions={filteredTransactions}
+              onPressEdit={() => setIsEditMonthlyCapOpen(true)}
+            />
           </View>
         )}
 
@@ -328,6 +366,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
                 category={categories.find((c) => c.id === tx.category_id)}
                 account={accounts.find((a) => a.id === tx.account_id)}
                 onDelete={deleteTransaction}
+                onPress={(item) => setEditingTransaction(item)}
               />
             ))
         )}
@@ -355,6 +394,20 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
       <AddTransactionModal
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+      />
+
+      {/* Edit Transaction Modal */}
+      <AddTransactionModal
+        visible={Boolean(editingTransaction)}
+        initialTransaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+      />
+
+      {/* Edit Overall Monthly Spending Cap Modal */}
+      <EditMonthlyCapModal
+        visible={isEditMonthlyCapOpen}
+        budget={activeBudget || null}
+        onClose={() => setIsEditMonthlyCapOpen(false)}
       />
     </View>
   );
@@ -396,6 +449,20 @@ const styles = StyleSheet.create({
   },
   topHeader: {
     marginBottom: 16,
+  },
+  netWorthHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  eyeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   netWorthLabel: {
     fontSize: 11,
