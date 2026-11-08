@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import { useStore } from '../store/useStore';
 import { getThemeColors, ThemeColors } from './colors';
@@ -14,7 +15,8 @@ export function useAppTheme(): {
   const isDark =
     themeMode === 'dark' ? true : themeMode === 'light' ? false : systemScheme === 'dark';
 
-  const colors = getThemeColors(isDark, accentColor);
-
-  return { colors, isDark, themeMode };
+  return useMemo(() => {
+    const colors = getThemeColors(isDark, accentColor);
+    return { colors, isDark, themeMode };
+  }, [isDark, accentColor, themeMode]);
 }

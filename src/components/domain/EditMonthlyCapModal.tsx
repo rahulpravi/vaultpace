@@ -26,7 +26,7 @@ interface EditMonthlyCapModalProps {
   onSuccess?: (newLimitCents: number) => void;
 }
 
-export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
+export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = React.memo(({
   visible,
   budget,
   onClose,
@@ -188,7 +188,7 @@ export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
       </KeyboardAvoidingView>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   overlay: {

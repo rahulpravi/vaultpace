@@ -51,7 +51,7 @@ interface AddTransactionModalProps {
   onClose: () => void;
 }
 
-export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
+export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.memo(({
   visible,
   initialType = 'expense',
   initialTransaction = null,
@@ -179,6 +179,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
   // Listen to keyboard visibility so custom keypad disappears when typing text and returns cleanly
   useEffect(() => {
+    if (!visible) return;
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
       setIsAmountFocused(false);
     });
@@ -189,7 +190,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [visible]);
 
   const handleAmountPress = () => {
     Keyboard.dismiss();
@@ -1421,7 +1422,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       />
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   overlay: {

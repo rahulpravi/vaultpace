@@ -7,26 +7,64 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#F8FAFC",
+      "dark": {
+        "image": "./assets/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0B0F19"
+      }
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vaultpace.app"
+      "bundleIdentifier": "com.vaultpace.app",
+      "splash": {
+        "image": "./assets/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#F8FAFC",
+        "dark": {
+          "image": "./assets/icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0F19"
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.vaultpace.app"
+      "package": "com.vaultpace.app",
+      "splash": {
+        "image": "./assets/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#F8FAFC",
+        "dark": {
+          "image": "./assets/icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B0F19"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F8FAFC",
+          "image": "./assets/icon.png",
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0B0F19",
+            "image": "./assets/icon.png",
+            "resizeMode": "contain"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

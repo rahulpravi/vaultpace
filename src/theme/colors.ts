@@ -61,7 +61,7 @@ export const LIGHT_THEME_BASE = {
 };
 
 export const DARK_THEME_BASE = {
-  background: '#0B0F17',
+  background: '#0B0F19',
   surface: '#111827',
   surfaceSubtle: '#1F2937',
   card: '#161F30',
@@ -81,14 +81,24 @@ export const DARK_THEME_BASE = {
   tabBarBorder: '#1F2937',
 };
 
+const THEME_CACHE: Record<string, ThemeColors> = {};
+
 export function getThemeColors(isDark: boolean, accentKey: AccentColor = 'emerald'): ThemeColors {
+  const cacheKey = `${isDark ? 'dark' : 'light'}_${accentKey}`;
+  if (THEME_CACHE[cacheKey]) {
+    return THEME_CACHE[cacheKey];
+  }
+
   const base = isDark ? DARK_THEME_BASE : LIGHT_THEME_BASE;
   const accentDef = ACCENT_PALETTES[accentKey] || ACCENT_PALETTES.emerald;
   const accentLight = isDark ? accentDef.lightDark : accentDef.lightMode;
 
-  return {
+  const theme: ThemeColors = {
     ...base,
     accent: accentDef.primary,
     accentLight,
   };
+
+  THEME_CACHE[cacheKey] = theme;
+  return theme;
 }

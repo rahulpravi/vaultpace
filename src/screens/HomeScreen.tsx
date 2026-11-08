@@ -156,6 +156,40 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
     toggleHideBalance();
   }, [toggleHideBalance]);
 
+  const handleNavigateAccounts = useCallback(() => {
+    navigation.navigate('AccountsTab');
+  }, [navigation]);
+
+  const handleNavigateTransactions = useCallback(() => {
+    navigation.navigate('TransactionsTab');
+  }, [navigation]);
+
+  const handleNavigateDebts = useCallback(() => {
+    navigation.navigate('Debts' as any);
+  }, [navigation]);
+
+  const handleNavigateBudgets = useCallback(() => {
+    navigation.navigate('BudgetsTab');
+  }, [navigation]);
+
+  const handleOpenAddModal = useCallback(() => {
+    triggerHaptic('light');
+    setIsAddModalOpen(true);
+  }, []);
+
+  const handleCloseAddModal = useCallback(() => {
+    setIsAddModalOpen(false);
+    setEditingTransaction(null);
+  }, []);
+
+  const handleOpenMonthlyCap = useCallback(() => {
+    setIsEditMonthlyCapOpen(true);
+  }, []);
+
+  const handleCloseMonthlyCap = useCallback(() => {
+    setIsEditMonthlyCapOpen(false);
+  }, []);
+
   const activeBudget = budgets[0];
 
   return (
@@ -280,8 +314,8 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           accounts={userAccounts}
           selectedAccountId={selectedAccountId}
           onSelectAccount={handleSelectAccount}
-          onManageAccounts={() => navigation.navigate('AccountsTab')}
-          onAddAccount={() => navigation.navigate('AccountsTab')}
+          onManageAccounts={handleNavigateAccounts}
+          onAddAccount={handleNavigateAccounts}
         />
 
         {/* =========================================================================
@@ -291,7 +325,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           activeOpacity={0.85}
           onPress={() => {
             triggerHaptic('light');
-            navigation.navigate('Debts' as any);
+            handleNavigateDebts();
           }}
           style={[
             styles.debtsBannerCard,
@@ -343,7 +377,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Spending Report</Text>
               <TouchableOpacity
-                onPress={() => navigation.navigate('BudgetsTab')}
+                onPress={handleNavigateBudgets}
                 style={styles.seeAllBtn}
               >
                 <Text style={[styles.seeAllText, { color: colors.accent }]}>View Report</Text>
@@ -354,7 +388,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <BudgetProgressCard
               budget={activeBudget}
               transactions={filteredTransactions}
-              onPressEdit={() => setIsEditMonthlyCapOpen(true)}
+              onPressEdit={handleOpenMonthlyCap}
             />
           </View>
         )}
@@ -365,7 +399,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Movements</Text>
           <TouchableOpacity
-            onPress={() => navigation.navigate('TransactionsTab')}
+            onPress={handleNavigateTransactions}
             style={styles.seeAllBtn}
           >
             <Text style={[styles.seeAllText, { color: colors.accent }]}>
@@ -403,10 +437,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
       {/* Floating Action Button */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => {
-          triggerHaptic('light');
-          setIsAddModalOpen(true);
-        }}
+        onPress={handleOpenAddModal}
         style={[
           styles.fab,
           {
@@ -418,24 +449,18 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         <Plus size={26} color={colors.onAccent} strokeWidth={2.5} />
       </TouchableOpacity>
 
-      {/* Add Transaction Modal */}
+      {/* Unified Add / Edit Transaction Modal */}
       <AddTransactionModal
-        visible={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-      />
-
-      {/* Edit Transaction Modal */}
-      <AddTransactionModal
-        visible={Boolean(editingTransaction)}
+        visible={isAddModalOpen || Boolean(editingTransaction)}
         initialTransaction={editingTransaction}
-        onClose={() => setEditingTransaction(null)}
+        onClose={handleCloseAddModal}
       />
 
       {/* Edit Overall Monthly Spending Cap Modal */}
       <EditMonthlyCapModal
         visible={isEditMonthlyCapOpen}
         budget={activeBudget || null}
-        onClose={() => setIsEditMonthlyCapOpen(false)}
+        onClose={handleCloseMonthlyCap}
       />
     </View>
   );

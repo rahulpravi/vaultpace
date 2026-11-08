@@ -119,13 +119,13 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     return Array.from(set).sort().reverse();
   }, [transactions]);
 
-  const formatMonth = (mStr: string) => {
+  const formatMonth = useCallback((mStr: string) => {
     const [y, m] = mStr.split('-');
     const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
     return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  };
+  }, []);
 
-  const getTypeLabel = (t: string | null) => {
+  const getTypeLabel = useCallback((t: string | null) => {
     switch (t) {
       case 'expense':
         return 'Expenses';
@@ -138,7 +138,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       default:
         return 'All Types';
     }
-  };
+  }, []);
 
   // Count active modal filters (excluding raw search query)
   const activeFilterCount = useMemo(() => {
@@ -160,42 +160,42 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     return count;
   }, [tempMonth, tempType, tempAccId, tempCatName]);
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     triggerHaptic('light');
     setSearchQuery('');
     setSelectedMonth(null);
     setSelectedType(null);
     setSelectedAccId(null);
     setSelectedCatName(null);
-  };
+  }, []);
 
-  const openFilterModal = () => {
+  const openFilterModal = useCallback(() => {
     triggerHaptic('light');
     setTempMonth(selectedMonth);
     setTempType(selectedType);
     setTempAccId(selectedAccId);
     setTempCatName(selectedCatName);
     setIsFilterModalOpen(true);
-  };
+  }, [selectedMonth, selectedType, selectedAccId, selectedCatName]);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     triggerHaptic('medium');
     setSelectedMonth(tempMonth);
     setSelectedType(tempType);
     setSelectedAccId(tempAccId);
     setSelectedCatName(tempCatName);
     setIsFilterModalOpen(false);
-  };
+  }, [tempMonth, tempType, tempAccId, tempCatName]);
 
-  const resetTempFilters = () => {
+  const resetTempFilters = useCallback(() => {
     triggerHaptic('light');
     setTempMonth(null);
     setTempType(null);
     setTempAccId(null);
     setTempCatName(null);
-  };
+  }, []);
 
-  const handleExportPdfPress = async () => {
+  const handleExportPdfPress = useCallback(async () => {
     triggerHaptic('light');
     const hasSecurityLock =
       Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
@@ -211,7 +211,17 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       return;
     }
     setIsPinModalOpen(true);
-  };
+  }, [
+    settings.security_pin,
+    settings.pin_lock_enabled,
+    settings.biometrics_enabled,
+    accounts,
+    categories,
+    budgets,
+    transactions,
+    settings,
+    getTotalNetWorthCents,
+  ]);
 
   // Filtered transactions for main screen
   const filtered = useMemo(() => {
@@ -395,191 +405,207 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     [colors.surface, colors.border, colors.text, colors.textMuted]
   );
 
-  const renderListHeader = (
-    <View style={styles.listHeaderWrap}>
-      {/* Compact Search & Filter Bar */}
-      <View style={styles.searchAndFilterRow}>
-        <View
-          style={[
-            styles.searchWrap,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Search size={18} color={colors.textMuted} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search notes, contact, category, wallet, amount..."
-            placeholderTextColor={colors.textMuted + '90'}
-            style={[styles.searchInput, { color: colors.text }]}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <X size={16} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <TouchableOpacity
-          onPress={openFilterModal}
-          activeOpacity={0.7}
-          style={[
-            styles.filterBtn,
-            {
-              backgroundColor: activeFilterCount > 0 ? colors.accentLight : colors.surface,
-              borderColor: activeFilterCount > 0 ? colors.accent : colors.border,
-            },
-          ]}
-        >
-          <SlidersHorizontal
-            size={18}
-            color={activeFilterCount > 0 ? colors.accent : colors.text}
-            strokeWidth={2.2}
-          />
-          {activeFilterCount > 0 && (
-            <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
-              <Text style={[styles.filterBadgeText, { color: colors.onAccent }]}>
-                {activeFilterCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Compact Active Filter Pills Row */}
-      {activeFilterCount > 0 && (
-        <View style={styles.activePillsContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.activePillsContent}
+  const renderListHeader = useMemo(
+    () => (
+      <View style={styles.listHeaderWrap}>
+        {/* Compact Search & Filter Bar */}
+        <View style={styles.searchAndFilterRow}>
+          <View
+            style={[
+              styles.searchWrap,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
           >
-            {/* Month Pill */}
-            {selectedMonth && (
-              <View
-                style={[
-                  styles.activePill,
-                  {
-                    backgroundColor: colors.accentLight,
-                    borderColor: colors.accent + '35',
-                  },
-                ]}
+            <Search size={18} color={colors.textMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search notes, contact, category, wallet, amount..."
+              placeholderTextColor={colors.textMuted + '90'}
+              style={[styles.searchInput, { color: colors.text }]}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Calendar size={12} color={colors.accent} />
-                <Text style={[styles.activePillText, { color: colors.accent }]}>
-                  {formatMonth(selectedMonth)}
+                <X size={16} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={openFilterModal}
+            activeOpacity={0.7}
+            style={[
+              styles.filterBtn,
+              {
+                backgroundColor: activeFilterCount > 0 ? colors.accentLight : colors.surface,
+                borderColor: activeFilterCount > 0 ? colors.accent : colors.border,
+              },
+            ]}
+          >
+            <SlidersHorizontal
+              size={18}
+              color={activeFilterCount > 0 ? colors.accent : colors.text}
+              strokeWidth={2.2}
+            />
+            {activeFilterCount > 0 && (
+              <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
+                <Text style={[styles.filterBadgeText, { color: colors.onAccent }]}>
+                  {activeFilterCount}
                 </Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setSelectedMonth(null);
-                  }}
-                >
-                  <X size={12} color={colors.accent} />
-                </TouchableOpacity>
               </View>
             )}
-
-            {/* Type Pill */}
-            {selectedType && (
-              <View
-                style={[
-                  styles.activePill,
-                  {
-                    backgroundColor: colors.accentLight,
-                    borderColor: colors.accent + '35',
-                  },
-                ]}
-              >
-                <Layers size={12} color={colors.accent} />
-                <Text style={[styles.activePillText, { color: colors.accent }]}>
-                  {getTypeLabel(selectedType)}
-                </Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setSelectedType(null);
-                  }}
-                >
-                  <X size={12} color={colors.accent} />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Wallet Pill */}
-            {selectedAccId && (
-              <View
-                style={[
-                  styles.activePill,
-                  {
-                    backgroundColor: colors.accentLight,
-                    borderColor: colors.accent + '35',
-                  },
-                ]}
-              >
-                <Wallet size={12} color={colors.accent} />
-                <Text style={[styles.activePillText, { color: colors.accent }]}>
-                  {userAccounts.find((a) => a.id === selectedAccId)?.name || 'Wallet'}
-                </Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setSelectedAccId(null);
-                  }}
-                >
-                  <X size={12} color={colors.accent} />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Category Pill */}
-            {selectedCatName && (
-              <View
-                style={[
-                  styles.activePill,
-                  {
-                    backgroundColor: colors.accentLight,
-                    borderColor: colors.accent + '35',
-                  },
-                ]}
-              >
-                <Tag size={12} color={colors.accent} />
-                <Text style={[styles.activePillText, { color: colors.accent }]}>
-                  {selectedCatName}
-                </Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setSelectedCatName(null);
-                  }}
-                >
-                  <X size={12} color={colors.accent} />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Reset All Pill */}
-            <TouchableOpacity
-              onPress={clearAllFilters}
-              style={[
-                styles.resetPill,
-                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
-              ]}
-            >
-              <RotateCcw size={11} color={colors.textMuted} />
-              <Text style={[styles.resetPillText, { color: colors.textMuted }]}>Reset</Text>
-            </TouchableOpacity>
-          </ScrollView>
+          </TouchableOpacity>
         </View>
-      )}
-    </View>
+
+        {/* Compact Active Filter Pills Row */}
+        {activeFilterCount > 0 && (
+          <View style={styles.activePillsContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activePillsContent}
+            >
+              {/* Month Pill */}
+              {selectedMonth && (
+                <View
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
+                  ]}
+                >
+                  <Calendar size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {formatMonth(selectedMonth)}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSelectedMonth(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Type Pill */}
+              {selectedType && (
+                <View
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
+                  ]}
+                >
+                  <Layers size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {getTypeLabel(selectedType)}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSelectedType(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Wallet Pill */}
+              {selectedAccId && (
+                <View
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
+                  ]}
+                >
+                  <Wallet size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {userAccounts.find((a) => a.id === selectedAccId)?.name || 'Wallet'}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSelectedAccId(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Category Pill */}
+              {selectedCatName && (
+                <View
+                  style={[
+                    styles.activePill,
+                    {
+                      backgroundColor: colors.accentLight,
+                      borderColor: colors.accent + '35',
+                    },
+                  ]}
+                >
+                  <Tag size={12} color={colors.accent} />
+                  <Text style={[styles.activePillText, { color: colors.accent }]}>
+                    {selectedCatName}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSelectedCatName(null);
+                    }}
+                  >
+                    <X size={12} color={colors.accent} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Reset All Pill */}
+              <TouchableOpacity
+                onPress={clearAllFilters}
+                style={[
+                  styles.resetPill,
+                  { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+                ]}
+              >
+                <RotateCcw size={11} color={colors.textMuted} />
+                <Text style={[styles.resetPillText, { color: colors.textMuted }]}>Reset</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    ),
+    [
+      colors,
+      searchQuery,
+      activeFilterCount,
+      selectedMonth,
+      selectedType,
+      selectedAccId,
+      selectedCatName,
+      userAccounts,
+      formatMonth,
+      getTypeLabel,
+      openFilterModal,
+      clearAllFilters,
+    ]
   );
 
   return (
@@ -633,9 +659,10 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
         renderItem={renderGroupItem}
         ListHeaderComponent={renderListHeader}
         ListEmptyComponent={renderEmptyState}
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
         windowSize={5}
+        updateCellsBatchingPeriod={50}
         removeClippedSubviews={Platform.OS !== 'web'}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
