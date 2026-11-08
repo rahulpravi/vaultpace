@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, AppState, View, Image } from 'react-native';
+import { StyleSheet, AppState, View, Text, Image } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
@@ -35,9 +35,9 @@ function AppContent() {
   const [splashFinished, setSplashFinished] = useState(false);
   const splashOpacity = useSharedValue(1);
 
-  // Synchronize native root window background color immediately
+  // Synchronize native root window background color immediately (pure black for dark splash)
   useEffect(() => {
-    SystemUI.setBackgroundColorAsync(isDark ? '#0B0F19' : '#F8FAFC').catch(() => {});
+    SystemUI.setBackgroundColorAsync(isDark ? '#000000' : '#F8FAFC').catch(() => {});
   }, [isDark]);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ function AppContent() {
     opacity: splashOpacity.value,
   }));
 
-  const backgroundColor = isDark ? '#0B0F19' : '#F8FAFC';
+  const backgroundColor = colors.background;
 
   const navigationTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -111,15 +111,34 @@ function AppContent() {
           style={[
             StyleSheet.absoluteFillObject,
             styles.splashOverlay,
-            { backgroundColor },
+            { backgroundColor: isDark ? '#000000' : '#F8FAFC' },
             splashAnimatedStyle,
           ]}
         >
-          <Image
-            source={require('./assets/icon.png')}
-            style={styles.splashLogo}
-            resizeMode="contain"
-          />
+          {isDark ? (
+            <View style={styles.darkLogoWrap}>
+              <Image
+                source={require('./assets/icon.png')}
+                style={styles.splashLogo}
+                resizeMode="contain"
+              />
+            </View>
+          ) : (
+            <View style={styles.lightLogoCard}>
+              <Image
+                source={require('./assets/icon.png')}
+                style={styles.splashLogo}
+                resizeMode="contain"
+              />
+            </View>
+          )}
+
+          <Text style={[styles.brandTitle, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
+            VaultPace
+          </Text>
+          <Text style={styles.brandSubtitle}>
+            Private Financial Tracker
+          </Text>
         </Animated.View>
       )}
     </View>
@@ -145,8 +164,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 99999,
   },
+  darkLogoWrap: {
+    width: 110,
+    height: 110,
+    borderRadius: 26,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000',
+  },
+  lightLogoCard: {
+    width: 110,
+    height: 110,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
   splashLogo: {
-    width: 160,
-    height: 160,
+    width: 110,
+    height: 110,
+    borderRadius: 26,
+    overflow: 'hidden',
+  },
+  brandTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginTop: 20,
+  },
+  brandSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#10B981',
+    marginTop: 6,
+    letterSpacing: 0.2,
   },
 });

@@ -13,7 +13,7 @@
       "dark": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0B0F19"
+        "backgroundColor": "#000000"
       }
     },
     "ios": {
@@ -26,7 +26,7 @@
         "dark": {
           "image": "./assets/icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#0B0F19"
+          "backgroundColor": "#000000"
         }
       }
     },
@@ -43,7 +43,7 @@
         "dark": {
           "image": "./assets/icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#0B0F19"
+          "backgroundColor": "#000000"
         }
       }
     },
@@ -57,10 +57,12 @@
         {
           "backgroundColor": "#F8FAFC",
           "image": "./assets/icon.png",
+          "imageWidth": 140,
           "resizeMode": "contain",
           "dark": {
-            "backgroundColor": "#0B0F19",
+            "backgroundColor": "#000000",
             "image": "./assets/icon.png",
+            "imageWidth": 140,
             "resizeMode": "contain"
           }
         }
