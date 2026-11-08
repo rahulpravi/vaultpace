@@ -4,7 +4,7 @@ import { useAppTheme } from '../../theme/useTheme';
 import { Budget, Transaction } from '../../types';
 import { formatCurrency } from '../../store/useStore';
 import { AlertTriangle, CheckCircle, Pencil } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 
 interface BudgetProgressCardProps {
   budget: Budget;
@@ -41,7 +41,7 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = React.memo(
 
   const handleEditPress = () => {
     if (onPressEdit) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       onPressEdit();
     }
   };

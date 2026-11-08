@@ -269,6 +269,10 @@ interface TrackerStore {
 
   // Recurring transactions processor
   processRecurringTransactions: () => void;
+
+  // First-launch security onboarding
+  hasCompletedOnboarding: boolean;
+  completeOnboarding: () => void;
 }
 
 export const useStore = create<TrackerStore>()(
@@ -281,6 +285,11 @@ export const useStore = create<TrackerStore>()(
       settings: DEFAULT_SETTINGS,
       categoryLimits: DEFAULT_CATEGORY_LIMITS,
       isAppLocked: false,
+      hasCompletedOnboarding: false,
+
+      completeOnboarding: () => {
+        set({ hasCompletedOnboarding: true });
+      },
 
       setCategoryLimit: (categoryId: string, limitCents: number) => {
         set((state) => ({
@@ -515,11 +524,24 @@ export const useStore = create<TrackerStore>()(
       },
 
       updateSettings: (settingsUpdates) => {
+        const currentSettings = get().settings;
+        const newCurrency = settingsUpdates.default_currency;
+        let updatedAccounts = get().accounts;
+
+        // When default_currency is changed, synchronize all existing accounts so symbols match globally
+        if (newCurrency && newCurrency !== currentSettings.default_currency) {
+          updatedAccounts = updatedAccounts.map((acc) => ({
+            ...acc,
+            currency: newCurrency,
+          }));
+        }
+
         set({
+          accounts: updatedAccounts,
           settings: {
-            ...get().settings,
+            ...currentSettings,
             ...settingsUpdates,
-            security_pin: get().settings.security_pin,
+            security_pin: currentSettings.security_pin,
           },
         });
       },
@@ -692,6 +714,7 @@ export const useStore = create<TrackerStore>()(
           security_pin: undefined,
         },
         categoryLimits: state.categoryLimits,
+        hasCompletedOnboarding: state.hasCompletedOnboarding,
       }),
       version: 3,
       migrate: (persistedState: any, version: number) => {
@@ -729,6 +752,27 @@ export const useStore = create<TrackerStore>()(
         return persistedState;
       },
       onRehydrateStorage: () => (state) => {
+        if (state) {
+          // If onboarding flag not yet recorded, detect if this is an existing user
+          if (
+            state.hasCompletedOnboarding === undefined &&
+            (state.settings?.pin_lock_enabled ||
+              state.settings?.biometrics_enabled ||
+              (Array.isArray(state.transactions) && state.transactions.length > 0))
+          ) {
+            state.hasCompletedOnboarding = true;
+          }
+
+          // Ensure all accounts' currency is aligned with active default_currency
+          if (state.settings?.default_currency && Array.isArray(state.accounts)) {
+            const defCurr = state.settings.default_currency;
+            state.accounts = state.accounts.map((acc) => ({
+              ...acc,
+              currency: defCurr,
+            }));
+          }
+        }
+
         if (state && Array.isArray(state.accounts)) {
           state.accounts = state.accounts.filter(
             (acc) =>
@@ -820,14 +864,21 @@ const SYMBOL_MAP: Record<string, string> = {
   AUD: 'A$',
 };
 
+export function getCurrencySymbol(currencyCode?: string): string {
+  const defaultCurrency = useStore.getState().settings?.default_currency || 'INR';
+  const code = (currencyCode || defaultCurrency).toUpperCase();
+  return SYMBOL_MAP[code] || SYMBOL_MAP[defaultCurrency] || '$';
+}
+
 export function formatCurrency(cents: number, currency?: string): string {
   const isNegative = cents < 0;
   const absDollars = Math.abs(cents) / 100;
+  const defaultCurrency = useStore.getState().settings?.default_currency || 'INR';
   const selectedCurrency = (
-    currency || useStore.getState().settings?.default_currency || 'INR'
+    currency || defaultCurrency
   ).toUpperCase();
 
-  const sym = SYMBOL_MAP[selectedCurrency] || selectedCurrency + ' ';
+  const sym = SYMBOL_MAP[selectedCurrency] || SYMBOL_MAP[defaultCurrency] || selectedCurrency + ' ';
   const locale = selectedCurrency === 'INR' || selectedCurrency === 'IND' ? 'en-IN' : 'en-US';
 
   const formatted = getCachedNumberFormatter(locale).format(absDollars);

@@ -6,6 +6,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { PinLockScreen } from './src/components/security/PinLockScreen';
+import { OnboardingSecurityModal } from './src/components/security/OnboardingSecurityModal';
 import { CustomAlertModal } from './src/components/common/CustomAlertModal';
 import { useAppTheme } from './src/theme/useTheme';
 import { useStore } from './src/store/useStore';
@@ -16,12 +17,13 @@ function AppContent() {
   const isAppLocked = useStore((s) => s.isAppLocked);
   const setIsAppLocked = useStore((s) => s.setIsAppLocked);
   const hydrateSecurityPin = useStore((s) => s.hydrateSecurityPin);
+  const hasCompletedOnboarding = useStore((s) => s.hasCompletedOnboarding);
 
   useEffect(() => {
     hydrateSecurityPin();
 
-    // If security lock is configured, require authentication on initial startup
-    if (settings.biometrics_enabled || settings.pin_lock_enabled) {
+    // If security lock is configured and onboarding is complete, require authentication on initial startup
+    if (hasCompletedOnboarding && (settings.biometrics_enabled || settings.pin_lock_enabled)) {
       setIsAppLocked(true);
     }
 
@@ -29,7 +31,7 @@ function AppContent() {
     let lastState = AppState.currentState;
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (lastState.match(/inactive|background/) && nextAppState === 'active') {
-        if (settings.biometrics_enabled || settings.pin_lock_enabled) {
+        if (hasCompletedOnboarding && (settings.biometrics_enabled || settings.pin_lock_enabled)) {
           setIsAppLocked(true);
         }
       }
@@ -39,7 +41,7 @@ function AppContent() {
     return () => {
       subscription.remove();
     };
-  }, [hydrateSecurityPin, settings.biometrics_enabled, settings.pin_lock_enabled, setIsAppLocked]);
+  }, [hydrateSecurityPin, settings.biometrics_enabled, settings.pin_lock_enabled, setIsAppLocked, hasCompletedOnboarding]);
 
   const navigationTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -56,7 +58,8 @@ function AppContent() {
   return (
     <NavigationContainer theme={navigationTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
-      {isAppLocked ? <PinLockScreen /> : <RootNavigator />}
+      {isAppLocked && hasCompletedOnboarding ? <PinLockScreen /> : <RootNavigator />}
+      {!hasCompletedOnboarding && <OnboardingSecurityModal visible={!hasCompletedOnboarding} />}
       <CustomAlertModal />
     </NavigationContainer>
   );

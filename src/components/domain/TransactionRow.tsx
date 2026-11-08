@@ -4,7 +4,7 @@ import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { Transaction, Category, Account } from '../../types';
 import { formatCurrency } from '../../store/useStore';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import { getCategoryIconComponent } from '../../utils/categoryIcons';
 import {
   ArrowLeftRight,
@@ -53,7 +53,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
     : category?.color || (isIncome ? colors.success : colors.accent);
 
   const handleDelete = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('medium');
     showAlert({
       type: 'danger',
       title: 'Delete Movement',
@@ -114,7 +114,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
 
   const handleRowPress = () => {
     if (onPress) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       onPress(transaction);
     }
   };

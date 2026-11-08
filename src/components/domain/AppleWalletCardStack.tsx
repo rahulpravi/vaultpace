@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
   interpolate,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import { Account } from '../../types';
 import {
   WalletCreditCard,
@@ -211,7 +211,7 @@ export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = React.m
   };
 
   const handleCardPress = (accountId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('medium');
 
     if (accountId === activeCardId) {
       // Tapping the front card toggles expand/collapse
@@ -230,7 +230,7 @@ export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = React.m
   };
 
   const toggleExpand = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setIsExpanded((prev) => !prev);
   };
 
@@ -350,7 +350,7 @@ export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = React.m
           {selectedAccountId && (
             <TouchableOpacity
               onPress={() => {
-                Haptics.selectionAsync();
+                triggerHaptic('selection');
                 onSelectAccount(null);
               }}
             >

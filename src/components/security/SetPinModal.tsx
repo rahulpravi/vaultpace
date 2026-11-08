@@ -9,7 +9,7 @@ import {
 import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { useStore } from '../../store/useStore';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import { X, Lock, CheckCircle2, Delete } from 'lucide-react-native';
 
 interface SetPinModalProps {
@@ -50,7 +50,7 @@ export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSu
   const handleDigitPress = (digit: number) => {
     if (currentPin.length >= 4) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setErrorMsg(null);
 
     const updated = currentPin + digit.toString();
@@ -62,7 +62,7 @@ export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSu
         setTimeout(() => {
           setStep('confirm');
           setScrambledDigits(shuffleDigits());
-          Haptics.selectionAsync();
+          triggerHaptic('selection');
         }, 200);
       }
     } else {
@@ -70,7 +70,7 @@ export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSu
       if (updated.length === 4) {
         if (updated === firstPin) {
           // Success!
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          triggerHaptic('success');
           setSecurityPin(updated);
           showAlert({
             type: 'success',
@@ -83,7 +83,7 @@ export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSu
           onClose();
         } else {
           // Mismatch
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          triggerHaptic('error');
           setErrorMsg('PINs do not match. Please start over.');
           setTimeout(() => {
             resetAll();
@@ -95,7 +95,7 @@ export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSu
 
   const handleDeletePress = () => {
     if (currentPin.length > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       if (step === 'create') {
         setFirstPin((prev) => prev.slice(0, -1));
       } else {

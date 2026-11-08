@@ -7,9 +7,9 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { ChevronLeft, ChevronRight, X, Calendar as CalendarIcon } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/useTheme';
+import { triggerHaptic } from '../../utils/haptics';
 
 interface CalendarDatePickerModalProps {
   visible: boolean;
@@ -66,7 +66,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   }, [visible, selectedDate]);
 
   const handlePrevMonth = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear((prev) => prev - 1);
@@ -76,7 +76,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   };
 
   const handleNextMonth = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear((prev) => prev + 1);
@@ -86,7 +86,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   };
 
   const handleSelectDay = (day: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     const mStr = String(viewMonth + 1).padStart(2, '0');
     const dStr = String(day).padStart(2, '0');
     const formatted = `${viewYear}-${mStr}-${dStr}`;
@@ -95,14 +95,14 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   };
 
   const handleQuickToday = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     const today = new Date().toISOString().split('T')[0];
     onSelectDate(today);
     onClose();
   };
 
   const handleQuickYesterday = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     onSelectDate(yesterday);
     onClose();

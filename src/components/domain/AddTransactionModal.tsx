@@ -14,9 +14,9 @@ import {
 } from 'react-native';
 import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
-import { useStore, parseAmountToCents, formatCurrency } from '../../store/useStore';
+import { useStore, parseAmountToCents, formatCurrency, getCurrencySymbol } from '../../store/useStore';
 import { TransactionType, Transaction } from '../../types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import {
   X,
   ArrowDownLeft,
@@ -211,18 +211,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   );
 
   const activeCurrency = selectedAccount?.currency || settings?.default_currency || 'INR';
-  const currencySymbol =
-    activeCurrency === 'INR' || activeCurrency === 'IND'
-      ? '₹'
-      : activeCurrency === 'USD'
-      ? '$'
-      : activeCurrency === 'EUR'
-      ? '€'
-      : activeCurrency === 'GBP'
-      ? '£'
-      : activeCurrency === 'JPY'
-      ? '¥'
-      : activeCurrency;
+  const currencySymbol = getCurrencySymbol(activeCurrency);
 
   const filteredCategories = useMemo(() => {
     let cats = categories.filter((c) =>
@@ -269,7 +258,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   }, [type, visible, filteredCategories, selectedCategoryId]);
 
   const handleTypeChange = (newType: TransactionType) => {
-    Haptics.selectionAsync();
+    triggerHaptic('selection');
     Keyboard.dismiss();
     setActivePicker(null);
     setType(newType);
@@ -279,7 +268,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   };
 
   const setQuickDueDate = (days: number) => {
-    Haptics.selectionAsync();
+    triggerHaptic('selection');
     const d = new Date();
     d.setDate(d.getDate() + days);
     setDueDate(d.toISOString().split('T')[0]);
@@ -346,7 +335,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       });
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
     resetForm();
     onClose();
   };
@@ -355,7 +344,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     const cents = parseAmountToCents(amountStr);
     if (cents <= 0) {
       setError('Please enter a valid amount greater than 0.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerHaptic('error');
       return;
     }
 
@@ -373,7 +362,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setError(
         `Please enter the person's name ${type === 'borrow' ? 'you borrowed from' : 'you lent to'}.`
       );
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerHaptic('error');
       return;
     }
 
@@ -407,7 +396,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
         const projected = available - cents;
         if (projected < 0) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          triggerHaptic('warning');
           showAlert({
             type: 'warning',
             title: 'Negative Balance Warning',
@@ -666,7 +655,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   activeOpacity={0.7}
                   onPress={() => {
                     Keyboard.dismiss();
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    triggerHaptic('light');
                     setActivePicker('fromWallet');
                   }}
                   style={[
@@ -722,7 +711,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     activeOpacity={0.7}
                     onPress={() => {
                       Keyboard.dismiss();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      triggerHaptic('light');
                       setActivePicker('toWallet');
                     }}
                     style={[
@@ -776,7 +765,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     activeOpacity={0.7}
                     onPress={() => {
                       Keyboard.dismiss();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      triggerHaptic('light');
                       setActivePicker('category');
                     }}
                     style={[
@@ -958,7 +947,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => {
                   Keyboard.dismiss();
                   setActivePicker(null);
-                  Haptics.selectionAsync();
+                  triggerHaptic('selection');
                   setSelectedDate(todayStr);
                 }}
                 style={[
@@ -982,7 +971,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => {
                   Keyboard.dismiss();
                   setActivePicker(null);
-                  Haptics.selectionAsync();
+                  triggerHaptic('selection');
                   setSelectedDate(yesterdayStr);
                 }}
                 style={[
@@ -1006,7 +995,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 onPress={() => {
                   Keyboard.dismiss();
                   setActivePicker(null);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerHaptic('light');
                   setShowDatePicker(true);
                 }}
                 style={[
@@ -1071,7 +1060,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 <Switch
                   value={isRecurring}
                   onValueChange={(val) => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     setIsRecurring(val);
                   }}
                   trackColor={{ false: colors.border, true: colors.accent }}
@@ -1216,7 +1205,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                         key={acc.id}
                         activeOpacity={0.7}
                         onPress={() => {
-                          Haptics.selectionAsync();
+                          triggerHaptic('selection');
                           if (activePicker === 'fromWallet') {
                             setSelectedAccountId(acc.id);
                           } else {
@@ -1317,7 +1306,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                           key={cat.id}
                           activeOpacity={0.7}
                           onPress={() => {
-                            Haptics.selectionAsync();
+                            triggerHaptic('selection');
                             setSelectedCategoryId(cat.id);
                             setActivePicker(null);
                             setIsAmountFocused(true);
@@ -1385,7 +1374,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                   <TouchableOpacity
                     activeOpacity={0.7}
                     onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      triggerHaptic('light');
                       setActivePicker(null);
                       setShowAddCategoryModal(true);
                     }}

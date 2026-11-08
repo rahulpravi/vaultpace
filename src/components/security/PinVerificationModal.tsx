@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { useStore } from '../../store/useStore';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { X, Lock, ShieldAlert, Fingerprint, Delete } from 'lucide-react-native';
 
@@ -89,7 +89,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
     if (!settings.biometrics_enabled || !biometricsAvailable) return;
 
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: title,
         fallbackLabel: 'Use PIN',
@@ -97,7 +97,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
       });
 
       if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerHaptic('success');
         onClose();
         setTimeout(() => {
           onSuccess();
@@ -112,7 +112,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
     const expectedPin = settings.security_pin;
 
     if (!expectedPin) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerHaptic('error');
       triggerShake();
       setErrorMsg('No security PIN is configured. Please set one first.');
       setPin('');
@@ -121,13 +121,13 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
     }
 
     if (candidatePin === expectedPin) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      triggerHaptic('success');
       onClose();
       setTimeout(() => {
         onSuccess();
       }, 150);
     } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerHaptic('error');
       triggerShake();
       setErrorMsg('Incorrect PIN. Please try again.');
       setPin('');
@@ -138,7 +138,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
   const handleDigitPress = (digit: number) => {
     if (pin.length >= 4) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setErrorMsg(null);
 
     const updated = pin + digit.toString();
@@ -151,7 +151,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
 
   const handleDeletePress = () => {
     if (pin.length > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       setPin((prev) => prev.slice(0, -1));
       setErrorMsg(null);
     }

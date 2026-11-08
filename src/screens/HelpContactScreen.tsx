@@ -15,7 +15,7 @@ import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { RootStackScreenProps } from '../navigation/types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import {
   ArrowLeft,
   HelpCircle,
@@ -81,12 +81,12 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
   const [feedbackSent, setFeedbackSent] = useState(false);
 
   const toggleFaq = (id: string) => {
-    Haptics.selectionAsync();
+    triggerHaptic('selection');
     setExpandedFaq(expandedFaq === id ? null : id);
   };
 
   const handleEmailDeveloper = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('medium');
     const email = 'support@vaultpace.app';
     const subject = encodeURIComponent(`VaultPace Support Inquiry [${Platform.OS.toUpperCase()}]`);
     const body = encodeURIComponent(
@@ -115,7 +115,7 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
   };
 
   const handleOpenLink = async (url: string, title: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
@@ -145,7 +145,7 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
       });
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
     const email = 'support@vaultpace.app';
     const subject = encodeURIComponent(`VaultPace User Note [${Platform.OS.toUpperCase()}]`);
     const body = encodeURIComponent(

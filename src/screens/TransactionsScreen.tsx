@@ -19,7 +19,7 @@ import { AddTransactionModal } from '../components/domain/AddTransactionModal';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { BottomTabProps } from '../navigation/types';
 import { Transaction } from '../types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import {
   Search,
   X,
@@ -161,7 +161,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   }, [tempMonth, tempType, tempAccId, tempCatName]);
 
   const clearAllFilters = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setSearchQuery('');
     setSelectedMonth(null);
     setSelectedType(null);
@@ -170,7 +170,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   };
 
   const openFilterModal = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setTempMonth(selectedMonth);
     setTempType(selectedType);
     setTempAccId(selectedAccId);
@@ -179,7 +179,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   };
 
   const applyFilters = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('medium');
     setSelectedMonth(tempMonth);
     setSelectedType(tempType);
     setSelectedAccId(tempAccId);
@@ -188,11 +188,29 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   };
 
   const resetTempFilters = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setTempMonth(null);
     setTempType(null);
     setTempAccId(null);
     setTempCatName(null);
+  };
+
+  const handleExportPdfPress = async () => {
+    triggerHaptic('light');
+    const hasSecurityLock =
+      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+    if (!hasSecurityLock) {
+      await exportTransactionsToPdf({
+        accounts,
+        categories,
+        budgets,
+        transactions,
+        settings,
+        totalNetWorth: getTotalNetWorthCents(),
+      });
+      return;
+    }
+    setIsPinModalOpen(true);
   };
 
   // Filtered transactions for main screen
@@ -457,7 +475,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <TouchableOpacity
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     setSelectedMonth(null);
                   }}
                 >
@@ -484,7 +502,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <TouchableOpacity
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     setSelectedType(null);
                   }}
                 >
@@ -511,7 +529,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <TouchableOpacity
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     setSelectedAccId(null);
                   }}
                 >
@@ -538,7 +556,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <TouchableOpacity
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     setSelectedCatName(null);
                   }}
                 >
@@ -588,10 +606,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setIsPinModalOpen(true);
-            }}
+            onPress={handleExportPdfPress}
             style={[
               styles.addBtn,
               { backgroundColor: colors.surfaceSubtle, borderWidth: 1, borderColor: colors.border },
@@ -602,7 +617,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
           <TouchableOpacity
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              triggerHaptic('light');
               setIsAddModalOpen(true);
             }}
             style={[styles.addBtn, { backgroundColor: colors.accent }]}
@@ -701,7 +716,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                   <View style={styles.chipsWrap}>
                     <TouchableOpacity
                       onPress={() => {
-                        Haptics.selectionAsync();
+                        triggerHaptic('selection');
                         setTempMonth(null);
                       }}
                       style={[
@@ -728,7 +743,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                         <TouchableOpacity
                           key={m}
                           onPress={() => {
-                            Haptics.selectionAsync();
+                            triggerHaptic('selection');
                             setTempMonth(isSelected ? null : m);
                           }}
                           style={[
@@ -775,7 +790,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                       <TouchableOpacity
                         key={item.label}
                         onPress={() => {
-                          Haptics.selectionAsync();
+                          triggerHaptic('selection');
                           setTempType(item.id);
                         }}
                         style={[
@@ -811,7 +826,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <View style={styles.chipsWrap}>
                   <TouchableOpacity
                     onPress={() => {
-                      Haptics.selectionAsync();
+                      triggerHaptic('selection');
                       setTempAccId(null);
                     }}
                     style={[
@@ -838,7 +853,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                       <TouchableOpacity
                         key={a.id}
                         onPress={() => {
-                          Haptics.selectionAsync();
+                          triggerHaptic('selection');
                           setTempAccId(isSelected ? null : a.id);
                         }}
                         style={[
@@ -874,7 +889,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <View style={styles.chipsWrap}>
                   <TouchableOpacity
                     onPress={() => {
-                      Haptics.selectionAsync();
+                      triggerHaptic('selection');
                       setTempCatName(null);
                     }}
                     style={[
@@ -901,7 +916,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                       <TouchableOpacity
                         key={c.name}
                         onPress={() => {
-                          Haptics.selectionAsync();
+                          triggerHaptic('selection');
                           setTempCatName(isSelected ? null : c.name);
                         }}
                         style={[

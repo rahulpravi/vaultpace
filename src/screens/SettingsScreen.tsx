@@ -17,7 +17,7 @@ import { ACCENT_PALETTES } from '../theme/colors';
 import { useStore } from '../store/useStore';
 import { ThemeMode, AccentColor } from '../types';
 import { BottomTabProps } from '../navigation/types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SetPinModal } from '../components/security/SetPinModal';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
@@ -81,7 +81,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
   });
 
   const handleToggleBiometrics = async (val: boolean) => {
-    Haptics.selectionAsync();
+    triggerHaptic('selection');
 
     if (!val) {
       updateSettings({ biometrics_enabled: false });
@@ -117,7 +117,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
       if (authResult.success) {
         updateSettings({ biometrics_enabled: true });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerHaptic('success');
         showAlert({
           type: 'success',
           title: 'Biometrics Enabled',
@@ -135,7 +135,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
   };
 
   const handlePinAction = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     if (settings.pin_lock_enabled) {
       showAlert({
         type: 'security',
@@ -152,7 +152,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             style: 'destructive',
             onPress: () => {
               resetSecurityPin();
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              triggerHaptic('success');
               showAlert({
                 type: 'success',
                 title: 'PIN Removed',
@@ -183,176 +183,178 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
       });
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    triggerHaptic('warning');
     setIsAppLocked(true);
   };
 
-  const handleExportBackup = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handleExportBackup = async () => {
+    triggerHaptic('light');
 
-    if (!settings.security_pin) {
-      showAlert({
-        type: 'security',
-        title: 'Security PIN Required',
-        message:
-          'Please set up your 4-digit Security PIN first before exporting an encrypted vault backup.',
-        buttons: [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Set Up PIN', onPress: () => setIsSetPinModalOpen(true) },
-        ],
+    const hasSecurityLock =
+      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+
+    const performExport = async () => {
+      try {
+        setIsExportingBackup(true);
+        await exportBackup({
+          accounts,
+          transactions,
+          categories,
+          budgets,
+          categoryLimits,
+          settings,
+        });
+        updateSettings({ last_backup_date: new Date().toISOString() });
+        triggerHaptic('success');
+      } catch (err: any) {
+        showAlert({
+          type: 'error',
+          title: 'Backup Failed',
+          message: err?.message || 'Could not export backup file.',
+        });
+      } finally {
+        setIsExportingBackup(false);
+      }
+    };
+
+    if (hasSecurityLock && settings.security_pin) {
+      setPinModalConfig({
+        visible: true,
+        title: 'Authorize Backup Export',
+        subtitle:
+          'Enter your 4-digit PIN to export your complete financial vault (Wallets, Transactions, Debts, Limits).',
+        actionType: 'primary',
+        onSuccess: performExport,
       });
-      return;
+    } else {
+      await performExport();
     }
-
-    setPinModalConfig({
-      visible: true,
-      title: 'Authorize Backup Export',
-      subtitle:
-        'Enter your 4-digit PIN to export your complete financial vault (Wallets, Transactions, Debts, Limits).',
-      actionType: 'primary',
-      onSuccess: async () => {
-        try {
-          setIsExportingBackup(true);
-          const { fileName } = await exportBackup({
-            accounts,
-            transactions,
-            categories,
-            budgets,
-            categoryLimits,
-            settings,
-          });
-          updateSettings({ last_backup_date: new Date().toISOString() });
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (err: any) {
-          showAlert({
-            type: 'error',
-            title: 'Backup Failed',
-            message: err?.message || 'Could not export backup file.',
-          });
-        } finally {
-          setIsExportingBackup(false);
-        }
-      },
-    });
   };
 
-  const handleRestoreBackup = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handleRestoreBackup = async () => {
+    triggerHaptic('light');
 
-    if (!settings.security_pin) {
-      showAlert({
-        type: 'security',
-        title: 'Security PIN Required',
-        message: 'Please configure your 4-digit Security PIN first before restoring backups.',
-        buttons: [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Set Up PIN', onPress: () => setIsSetPinModalOpen(true) },
-        ],
-      });
-      return;
-    }
+    const hasSecurityLock =
+      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
 
-    setPinModalConfig({
-      visible: true,
-      title: 'Authorize Vault Restore',
-      subtitle:
-        'Enter your 4-digit PIN to restore data from backup. Restoring will safely replace current records with the backup file.',
-      actionType: 'destructive',
-      onSuccess: async () => {
-        try {
-          setIsRestoringBackup(true);
-          const result = await pickAndRestoreBackup();
-          if (result.canceled) {
-            return;
-          }
-          if (!result.success || !result.data) {
-            showAlert({
-              type: 'error',
-              title: 'Restore Failed',
-              message: result.error || 'Invalid or corrupted backup file.',
-            });
-            return;
-          }
-
-          const { data, meta } = result;
-          const backupDate = meta?.exported_at
-            ? new Date(meta.exported_at).toLocaleDateString()
-            : 'Unknown date';
-
+    const performRestore = async () => {
+      try {
+        setIsRestoringBackup(true);
+        const result = await pickAndRestoreBackup();
+        if (result.canceled) {
+          return;
+        }
+        if (!result.success || !result.data) {
           showAlert({
-            type: 'danger',
-            title: 'Confirm Restore',
-            message:
-              `Backup Date: ${backupDate}\n` +
-              `Wallets: ${meta?.accountsCount || 0}\n` +
-              `Transactions: ${meta?.transactionsCount || 0} (${meta?.debtsCount || 0} loan records)\n\n` +
-              `Do you want to restore these records into your VaultPace vault?`,
-            buttons: [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Restore Now',
-                style: 'destructive',
-                onPress: () => {
-                  restoreBackupData(data);
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  showAlert({
-                    type: 'success',
-                    title: 'Vault Restored',
-                    message:
-                      'All wallets, transactions, debts/IOUs, and category limits have been restored successfully!',
-                  });
-                },
+            type: 'error',
+            title: 'Restore Failed',
+            message: result.error || 'Invalid or corrupted backup file.',
+          });
+          return;
+        }
+
+        const { data, meta } = result;
+        const backupDate = meta?.exported_at
+          ? new Date(meta.exported_at).toLocaleDateString()
+          : 'Unknown date';
+
+        showAlert({
+          type: 'danger',
+          title: 'Confirm Restore',
+          message:
+            `Backup Date: ${backupDate}\n` +
+            `Wallets: ${meta?.accountsCount || 0}\n` +
+            `Transactions: ${meta?.transactionsCount || 0} (${meta?.debtsCount || 0} loan records)\n\n` +
+            `Do you want to restore these records into your VaultPace vault?`,
+          buttons: [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Restore Now',
+              style: 'destructive',
+              onPress: () => {
+                restoreBackupData(data);
+                triggerHaptic('success');
+                showAlert({
+                  type: 'success',
+                  title: 'Vault Restored',
+                  message:
+                    'All wallets, transactions, debts/IOUs, and category limits have been restored successfully!',
+                });
               },
-            ],
-          });
-        } catch (err: any) {
-          showAlert({
-            type: 'error',
-            title: 'Restore Error',
-            message: err?.message || 'Failed to restore backup file.',
-          });
-        } finally {
-          setIsRestoringBackup(false);
-        }
-      },
-    });
+            },
+          ],
+        });
+      } catch (err: any) {
+        showAlert({
+          type: 'error',
+          title: 'Restore Error',
+          message: err?.message || 'Failed to restore backup file.',
+        });
+      } finally {
+        setIsRestoringBackup(false);
+      }
+    };
+
+    if (hasSecurityLock && settings.security_pin) {
+      setPinModalConfig({
+        visible: true,
+        title: 'Authorize Vault Restore',
+        subtitle:
+          'Enter your 4-digit PIN to restore data from backup. Restoring will safely replace current records with the backup file.',
+        actionType: 'destructive',
+        onSuccess: performRestore,
+      });
+    } else {
+      await performRestore();
+    }
   };
 
-  const handleExportPdf = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setPinModalConfig({
-      visible: true,
-      title: 'Authorize PDF Export',
-      subtitle:
-        'Enter your 4-digit PIN to generate and download your confidential financial PDF statement.',
-      actionType: 'primary',
-      onSuccess: async () => {
-        try {
-          setIsExportingPdf(true);
-          await exportTransactionsToPdf({
-            accounts,
-            categories,
-            budgets,
-            transactions,
-            settings,
-            totalNetWorth: getTotalNetWorthCents(),
-          });
-        } catch {
-          showAlert({
-            type: 'error',
-            title: 'Export Error',
-            message: 'Unable to generate PDF statement.',
-          });
-        } finally {
-          setIsExportingPdf(false);
-        }
-      },
-    });
+  const handleExportPdf = async () => {
+    triggerHaptic('light');
+
+    const hasSecurityLock =
+      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+
+    const performExportPdf = async () => {
+      try {
+        setIsExportingPdf(true);
+        await exportTransactionsToPdf({
+          accounts,
+          categories,
+          budgets,
+          transactions,
+          settings,
+          totalNetWorth: getTotalNetWorthCents(),
+        });
+        triggerHaptic('success');
+      } catch {
+        showAlert({
+          type: 'error',
+          title: 'Export Error',
+          message: 'Unable to generate PDF statement.',
+        });
+      } finally {
+        setIsExportingPdf(false);
+      }
+    };
+
+    if (hasSecurityLock && settings.security_pin) {
+      setPinModalConfig({
+        visible: true,
+        title: 'Authorize PDF Export',
+        subtitle:
+          'Enter your 4-digit PIN to generate and download your confidential financial PDF statement.',
+        actionType: 'primary',
+        onSuccess: performExportPdf,
+      });
+    } else {
+      await performExportPdf();
+    }
   };
 
   const handleExportCSV = async () => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      triggerHaptic('medium');
       let csv = 'ID,Date,Time,Type,Amount_Cents,Account,Category,Notes\n';
       for (const t of transactions) {
         const acc = accounts.find((a) => a.id === t.account_id)?.name || '';
@@ -376,24 +378,51 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
   };
 
   const handleResetData = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setPinModalConfig({
-      visible: true,
-      title: 'Authorize Clean Slate',
-      subtitle:
-        'Enter your 4-digit PIN to wipe all transactions, wallet balances, and limits. Your security PIN, biometrics, and preferences will NOT be affected.',
-      actionType: 'destructive',
-      onSuccess: () => {
-        cleanSlateFinancialRecords();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showAlert({
-          type: 'success',
-          title: 'Clean Slate Ready',
-          message:
-            'All financial transactions, wallet balances, and custom limits have been wiped. Your security PIN, biometrics, and preferences are preserved.',
-        });
-      },
-    });
+    triggerHaptic('warning');
+
+    const hasSecurityLock =
+      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+
+    const executeCleanSlate = () => {
+      cleanSlateFinancialRecords();
+      triggerHaptic('success');
+      showAlert({
+        type: 'success',
+        title: 'Clean Slate Ready',
+        message:
+          'All financial transactions, wallet balances, and custom limits have been wiped. Your preferences and settings are preserved.',
+      });
+    };
+
+    const confirmCleanSlate = () => {
+      showAlert({
+        type: 'danger',
+        title: 'Reset All Financial Records?',
+        message:
+          'Are you sure you want to erase all transactions and reset wallet balances to zero? This action cannot be undone.',
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Wipe Records',
+            style: 'destructive',
+            onPress: executeCleanSlate,
+          },
+        ],
+      });
+    };
+
+    if (hasSecurityLock && settings.security_pin) {
+      setPinModalConfig({
+        visible: true,
+        title: 'Authorize Clean Slate',
+        subtitle:
+          'Enter your 4-digit PIN to wipe all transactions, wallet balances, and limits. Your security PIN, biometrics, and preferences will NOT be affected.',
+        actionType: 'destructive',
+        onSuccess: confirmCleanSlate,
+      });
+    } else {
+      confirmCleanSlate();
+    }
   };
 
   const currencyOptions = [
@@ -435,7 +464,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            triggerHaptic('light');
             (navigation as any).navigate('HelpContact');
           }}
           style={[
@@ -483,7 +512,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
               <View style={[styles.themePills, { backgroundColor: colors.surfaceSubtle }]}>
                 <TouchableOpacity
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     updateSettings({ theme_mode: 'light' });
                   }}
                   style={[
@@ -510,7 +539,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
                 <TouchableOpacity
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     updateSettings({ theme_mode: 'dark' });
                   }}
                   style={[
@@ -537,7 +566,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
                 <TouchableOpacity
                   onPress={() => {
-                    Haptics.selectionAsync();
+                    triggerHaptic('selection');
                     updateSettings({ theme_mode: 'system' });
                   }}
                   style={[
@@ -583,7 +612,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
                     <TouchableOpacity
                       key={key}
                       onPress={() => {
-                        Haptics.selectionAsync();
+                        triggerHaptic('selection');
                         updateSettings({ accent_color: key });
                       }}
                       style={[
@@ -637,7 +666,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
                   <TouchableOpacity
                     key={c.code}
                     onPress={() => {
-                      Haptics.selectionAsync();
+                      triggerHaptic('selection');
                       updateSettings({ default_currency: c.code });
                     }}
                     style={[
@@ -691,7 +720,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerHaptic('light');
                   setIsAddCategoryModalOpen(true);
                 }}
                 style={[
@@ -792,16 +821,16 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
               <View style={styles.iconWithLabel}>
                 <Vibrate size={18} color={colors.accent} />
                 <View>
-                  <Text style={[styles.rowTitle, { color: colors.text }]}>Tactile Haptics</Text>
+                  <Text style={[styles.rowTitle, { color: colors.text }]}>Haptic Feedback</Text>
                   <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>
-                    Vibrate on keypad presses and actions
+                    Tactile vibration on keypad presses and navigation
                   </Text>
                 </View>
               </View>
               <Switch
                 value={settings.haptics_enabled}
                 onValueChange={(val) => {
-                  Haptics.selectionAsync();
+                  triggerHaptic('selection');
                   updateSettings({ haptics_enabled: val });
                 }}
                 trackColor={{ false: colors.surfaceSubtle, true: colors.accent }}
@@ -892,7 +921,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             {/* Debts & IOUs Tracker */}
             <TouchableOpacity
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                triggerHaptic('light');
                 navigation.navigate('Debts' as any);
               }}
               style={styles.actionRow}

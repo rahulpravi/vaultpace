@@ -10,7 +10,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import { useAppTheme } from '../../theme/useTheme';
 import {
   LayoutDashboard,
@@ -153,7 +153,7 @@ export const LiquidGlassTabBar: React.FC<BottomTabBarProps> = ({
               });
 
               if (!isFocused && !event.defaultPrevented) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                triggerHaptic('light');
                 navigation.navigate(route.name);
               }
             };

@@ -89,6 +89,7 @@ export interface UserSettings {
   notifications_enabled: boolean;
   haptics_enabled: boolean;
   is_balance_hidden?: boolean;
+  has_completed_onboarding?: boolean;
 }
 
 // React Navigation Types

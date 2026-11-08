@@ -14,10 +14,10 @@ import {
 import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency, parseAmountToCents } from '../store/useStore';
+import { useStore, formatCurrency, parseAmountToCents, getCurrencySymbol } from '../store/useStore';
 import { AccountType } from '../types';
 import { BottomTabProps } from '../navigation/types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import {
   Wallet,
   Landmark,
@@ -99,7 +99,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
     setError(null);
     setIsCurrencyPickerOpen(false);
     setIsModalOpen(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
   };
 
   const handleSave = () => {
@@ -126,7 +126,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
       icon: 'wallet',
     });
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
     setName('');
     setInitialBalanceStr('');
     setError(null);
@@ -144,7 +144,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
         return;
       }
 
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      triggerHaptic('medium');
       showAlert({
         type: 'danger',
         title: 'Remove Wallet',
@@ -156,7 +156,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
             style: 'destructive',
             onPress: () => {
               deleteAccount(id);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              triggerHaptic('success');
             },
           },
         ],
@@ -340,9 +340,9 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
                 ))}
               </View>
 
-              {/* Currency Selector (Default strictly INR) */}
+              {/* Currency Selector */}
               <Text style={[styles.inputLabel, { color: colors.textMuted, marginTop: 14 }]}>
-                Account Currency (Default: INR ₹)
+                Account Currency (Default: {settings.default_currency} {getCurrencySymbol(settings.default_currency)})
               </Text>
               <ScrollView
                 horizontal
@@ -355,7 +355,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
                     <TouchableOpacity
                       key={item.code}
                       onPress={() => {
-                        Haptics.selectionAsync();
+                        triggerHaptic('selection');
                         setCurrency(item.code);
                       }}
                       style={[

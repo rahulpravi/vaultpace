@@ -14,13 +14,13 @@ import {
 import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency, parseAmountToCents } from '../store/useStore';
+import { useStore, formatCurrency, parseAmountToCents, getCurrencySymbol } from '../store/useStore';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 import { BottomTabProps } from '../navigation/types';
 import { Category, Budget } from '../types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import { Target, Pencil, X, Check, BarChart3, FileDown, Plus } from 'lucide-react-native';
 import {
   CustomAmountKeypad,
@@ -73,20 +73,11 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
     [categories]
   );
 
-  const currencySymbol =
-    settings.default_currency === 'INR' || settings.default_currency === 'IND'
-      ? '₹'
-      : settings.default_currency === 'USD'
-      ? '$'
-      : settings.default_currency === 'EUR'
-      ? '€'
-      : settings.default_currency === 'GBP'
-      ? '£'
-      : settings.default_currency;
+  const currencySymbol = getCurrencySymbol(settings.default_currency);
 
   const handleOpenEdit = useCallback((cat: Category, currentLimitCents: number) => {
     Keyboard.dismiss();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setEditingCategory(cat);
     const standardAmount = (currentLimitCents / 100).toFixed(0);
     setNewLimitStr(standardAmount === '0' ? '' : standardAmount);
@@ -95,7 +86,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const handleSaveLimit = useCallback(() => {
     if (!editingCategory) return;
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
     const cents = parseAmountToCents(newLimitStr);
     setCategoryLimit(editingCategory.id, cents);
     setEditingCategory(null);
@@ -103,16 +94,11 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   }, [editingCategory, newLimitStr, setCategoryLimit]);
 
   const addQuickIncrement = useCallback((additionalRupees: number) => {
-    Haptics.selectionAsync();
+    triggerHaptic('selection');
     setNewLimitStr((prev) => {
       const currentVal = parseFloat(prev) || 0;
       return (currentVal + additionalRupees).toString();
     });
-  }, []);
-
-  const handleExportReportPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsPinModalOpen(true);
   }, []);
 
   const handlePinExportSuccess = useCallback(async () => {
@@ -136,6 +122,17 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
       setIsExportingPdf(false);
     }
   }, [accounts, categories, budgets, transactions, settings, getTotalNetWorthCents]);
+
+  const handleExportReportPress = useCallback(() => {
+    triggerHaptic('light');
+    const hasLockConfigured =
+      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+    if (!hasLockConfigured) {
+      handlePinExportSuccess();
+      return;
+    }
+    setIsPinModalOpen(true);
+  }, [settings, handlePinExportSuccess]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -191,7 +188,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
             budget={b}
             transactions={transactions}
             onPressEdit={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              triggerHaptic('light');
               setEditingBudget(b);
             }}
           />
@@ -208,7 +205,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              triggerHaptic('light');
               setShowAddCategoryModal(true);
             }}
             style={[
@@ -218,7 +215,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
           >
             <Plus size={13} color={colors.accent} strokeWidth={2.5} />
             <Text style={[styles.addCategoryBtnText, { color: colors.accent }]}>
-              + Category
+              Category
             </Text>
           </TouchableOpacity>
         </View>

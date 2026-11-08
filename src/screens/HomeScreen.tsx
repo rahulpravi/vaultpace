@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency } from '../store/useStore';
+import { useStore, formatCurrency, getCurrencySymbol } from '../store/useStore';
 import { AppleWalletCardStack } from '../components/domain/AppleWalletCardStack';
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
@@ -18,7 +18,7 @@ import { AddTransactionModal } from '../components/domain/AddTransactionModal';
 import { EditMonthlyCapModal } from '../components/domain/EditMonthlyCapModal';
 import { BottomTabProps } from '../navigation/types';
 import { Transaction } from '../types';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import {
   ShieldCheck,
   ArrowDownLeft,
@@ -152,7 +152,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
   }, []);
 
   const handleToggleHideBalance = useCallback(() => {
-    Haptics.selectionAsync();
+    triggerHaptic('selection');
     toggleHideBalance();
   }, [toggleHideBalance]);
 
@@ -225,7 +225,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           </View>
           <Text style={[styles.netWorthAmount, { color: colors.text }]}>
             {settings.is_balance_hidden
-              ? '₹ •••••••'
+              ? `${getCurrencySymbol(selectedAccount?.currency || settings.default_currency)} •••••••`
               : formatCurrency(
                   selectedAccount ? selectedAccount.current_balance : totalNetWorth,
                   selectedAccount?.currency || settings.default_currency
@@ -290,7 +290,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            triggerHaptic('light');
             navigation.navigate('Debts' as any);
           }}
           style={[
@@ -404,7 +404,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          triggerHaptic('light');
           setIsAddModalOpen(true);
         }}
         style={[

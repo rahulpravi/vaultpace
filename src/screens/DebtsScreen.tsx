@@ -15,7 +15,7 @@ import { useStore, formatCurrency } from '../store/useStore';
 import { Transaction, RootStackParamList } from '../types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../utils/haptics';
 import {
   ArrowLeft,
   Coins,
@@ -116,7 +116,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
   }, [allDebts, activeTab]);
 
   const handleOpenSettlement = (debt: Transaction) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('medium');
     setSettlementTargetDebt(debt);
     setSelectedSettlementAccountId(userAccounts[0]?.id || debt.account_id);
   };
@@ -125,7 +125,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
     if (!settlementTargetDebt || !selectedSettlementAccountId) return;
 
     settleDebt(settlementTargetDebt.id, selectedSettlementAccountId);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
 
     const contact = settlementTargetDebt.contact_name || 'Contact';
     const isBorrow = settlementTargetDebt.transaction_type === 'borrow';
@@ -143,7 +143,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
 
   const handleDeleteDebt = useCallback(
     (id: string, name: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       showAlert({
         type: 'danger',
         title: 'Remove Record',
@@ -155,7 +155,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
             style: 'destructive',
             onPress: () => {
               deleteTransaction(id);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              triggerHaptic('success');
             },
           },
         ],
@@ -213,7 +213,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
 
         <TouchableOpacity
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            triggerHaptic('light');
             setAddModalType('lend');
             setIsAddModalOpen(true);
           }}
@@ -302,7 +302,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
         <View style={styles.quickActionRow}>
           <TouchableOpacity
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              triggerHaptic('light');
               setAddModalType('lend');
               setIsAddModalOpen(true);
             }}
@@ -314,7 +314,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              triggerHaptic('light');
               setAddModalType('borrow');
               setIsAddModalOpen(true);
             }}
@@ -329,7 +329,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
           <TouchableOpacity
             onPress={() => {
-              Haptics.selectionAsync();
+              triggerHaptic('selection');
               setActiveTab('all_active');
             }}
             style={[
@@ -352,7 +352,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={() => {
-              Haptics.selectionAsync();
+              triggerHaptic('selection');
               setActiveTab('lent');
             }}
             style={[
@@ -375,7 +375,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={() => {
-              Haptics.selectionAsync();
+              triggerHaptic('selection');
               setActiveTab('borrowed');
             }}
             style={[
@@ -398,7 +398,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={() => {
-              Haptics.selectionAsync();
+              triggerHaptic('selection');
               setActiveTab('settled');
             }}
             style={[
@@ -665,7 +665,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
                     <TouchableOpacity
                       key={acc.id}
                       onPress={() => {
-                        Haptics.selectionAsync();
+                        triggerHaptic('selection');
                         setSelectedSettlementAccountId(acc.id);
                       }}
                       style={[

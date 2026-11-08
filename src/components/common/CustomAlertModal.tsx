@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useAlertStore, AlertButton, AlertType } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -32,9 +32,9 @@ export const CustomAlertModal: React.FC = () => {
 
   const handleButtonPress = (btn: AlertButton) => {
     if (btn.style === 'destructive') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      triggerHaptic('warning');
     } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
     }
     hideAlert();
     btn.onPress?.();

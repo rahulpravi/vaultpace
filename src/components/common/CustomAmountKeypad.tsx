@@ -10,10 +10,11 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { Delete, Equal } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { evaluateMathExpression, hasArithmeticOperator } from '../../utils/calculator';
+import { triggerHaptic } from '../../utils/haptics';
+import { getCurrencySymbol } from '../../store/useStore';
 
 export interface CustomAmountKeypadProps {
   value: string;
@@ -76,16 +77,16 @@ const KeypadKey: React.FC<KeypadKeyProps> = React.memo(({
 
   const handleTap = () => {
     if (isEquals) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      triggerHaptic('medium');
     } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
     }
     onPress();
   };
 
   const handleLongPress = () => {
     if (onLongPress) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      triggerHaptic('heavy');
       onLongPress();
     }
   };
@@ -381,7 +382,7 @@ export interface AmountDisplayProps {
 
 export const AmountDisplay: React.FC<AmountDisplayProps> = ({
   value,
-  currencySymbol = '₹',
+  currencySymbol = getCurrencySymbol(),
   placeholder = '0.00',
   isFocused = false,
   onPress,

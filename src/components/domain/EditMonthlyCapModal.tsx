@@ -9,11 +9,11 @@ import {
   Platform,
 } from 'react-native';
 import { showAlert } from '../../store/useAlertStore';
-import * as Haptics from 'expo-haptics';
 import { X, Check, Target, Plus } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { Budget } from '../../types';
-import { useStore, parseAmountToCents, formatCurrency } from '../../store/useStore';
+import { useStore, parseAmountToCents, formatCurrency, getCurrencySymbol } from '../../store/useStore';
+import { triggerHaptic } from '../../utils/haptics';
 import {
   CustomAmountKeypad,
   AmountDisplay,
@@ -49,7 +49,7 @@ export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
   }, [visible, budget]);
 
   const handleQuickAdd = (amountRupees: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     const parsed = parseFloat(limitStr) || 0;
     const next = parsed + amountRupees;
     setLimitStr(next.toString());
@@ -58,7 +58,7 @@ export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
   const handleSave = () => {
     const cents = parseAmountToCents(limitStr);
     if (cents <= 0) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      triggerHaptic('warning');
       showAlert({
         type: 'warning',
         title: 'Invalid Cap',
@@ -67,18 +67,13 @@ export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
     setMonthlySpendingCap(cents);
     onSuccess?.(cents);
     onClose();
   };
 
-  const currencySymbol =
-    settings?.default_currency === 'USD'
-      ? '$'
-      : settings?.default_currency === 'EUR'
-      ? '€'
-      : '₹';
+  const currencySymbol = getCurrencySymbol(settings?.default_currency);
 
   return (
     <Modal
@@ -163,7 +158,7 @@ export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
               >
                 <Plus size={11} color={colors.accent} />
                 <Text style={[styles.quickAddText, { color: colors.text }]}>
-                  {step >= 1000 ? `₹${step / 1000}k` : `₹${step}`}
+                  {step >= 1000 ? `${currencySymbol}${step / 1000}k` : `${currencySymbol}${step}`}
                 </Text>
               </TouchableOpacity>
             ))}

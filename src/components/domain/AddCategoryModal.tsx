@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { showAlert } from '../../store/useAlertStore';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import { X, Check, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { Category } from '../../types';
@@ -58,7 +58,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   const handleSave = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      triggerHaptic('warning');
       showAlert({
         type: 'warning',
         title: 'Category Name Required',
@@ -74,7 +74,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         c.name.trim().toLowerCase() === trimmed.toLowerCase()
     );
     if (duplicate) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      triggerHaptic('warning');
       showAlert({
         type: 'warning',
         title: 'Duplicate Category',
@@ -83,7 +83,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
 
     const newCategory = addCategory({
       name: trimmed,
@@ -144,7 +144,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
             <View style={[styles.typeSegment, { backgroundColor: colors.surfaceSubtle, borderColor: colors.border }]}>
               <TouchableOpacity
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerHaptic('light');
                   setCategoryType('expense');
                 }}
                 style={[
@@ -174,7 +174,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
 
               <TouchableOpacity
                 onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  triggerHaptic('light');
                   setCategoryType('income');
                 }}
                 style={[
@@ -249,7 +249,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
                   <TouchableOpacity
                     key={c}
                     onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      triggerHaptic('light');
                       setSelectedColor(c);
                     }}
                     style={[
@@ -274,7 +274,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
                   <TouchableOpacity
                     key={item.id}
                     onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      triggerHaptic('light');
                       setSelectedIcon(item.id);
                     }}
                     style={[

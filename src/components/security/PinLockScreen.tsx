@@ -11,7 +11,7 @@ import {
 import { showAlert } from '../../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '../../utils/haptics';
 import { useStore } from '../../store/useStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { ShieldAlert, Fingerprint, Delete, Lock, KeyRound } from 'lucide-react-native';
@@ -73,7 +73,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
       });
 
       if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        triggerHaptic('success');
         setIsAppLocked(false);
         onSuccess?.();
       }
@@ -104,7 +104,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
   const handleDigitPress = (digit: number) => {
     if (pin.length >= 4) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic('light');
     setErrorMsg(null);
 
     const newPin = pin + digit.toString();
@@ -119,7 +119,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
     const expectedPin = settings.security_pin;
 
     if (!expectedPin) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerHaptic('error');
       triggerShake();
       setErrorMsg('No security PIN is configured. Please set one in Settings.');
       setPin('');
@@ -128,11 +128,11 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
     }
 
     if (candidatePin === expectedPin) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      triggerHaptic('success');
       setIsAppLocked(false);
       onSuccess?.();
     } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      triggerHaptic('error');
       triggerShake();
       setErrorMsg('Incorrect PIN. Please try again.');
       setPin('');
@@ -142,14 +142,14 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
 
   const handleDeletePress = () => {
     if (pin.length > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic('light');
       setPin((prev) => prev.slice(0, -1));
       setErrorMsg(null);
     }
   };
 
   const handleResetPin = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    triggerHaptic('medium');
 
     // If biometrics is supported and enrolled, prompt for biometric identity check first
     if (biometricsAvailable) {
@@ -162,7 +162,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
 
         if (bioResult.success) {
           resetSecurityPin();
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          triggerHaptic('success');
           showAlert({
             type: 'success',
             title: 'PIN Cleared',
@@ -189,7 +189,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
           style: 'destructive',
           onPress: () => {
             resetSecurityPin();
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            triggerHaptic('success');
             showAlert({
               type: 'success',
               title: 'PIN Reset Complete',
