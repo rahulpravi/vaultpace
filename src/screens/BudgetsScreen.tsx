@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Alert,
   Modal,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
 } from 'react-native';
+import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { useStore, formatCurrency, parseAmountToCents } from '../store/useStore';
@@ -49,6 +49,31 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  // Precompute spending and count by category in a single O(N) pass for instant 60fps rendering
+  const categoryStatsMap = useMemo(() => {
+    const map: Record<string, { spent: number; count: number }> = {};
+    for (const t of transactions) {
+      if (
+        t.transaction_type === 'expense' &&
+        !t.is_settlement &&
+        !t.notes?.toLowerCase().startsWith('settled:') &&
+        t.category_id
+      ) {
+        if (!map[t.category_id]) {
+          map[t.category_id] = { spent: 0, count: 0 };
+        }
+        map[t.category_id].spent += t.amount;
+        map[t.category_id].count += 1;
+      }
+    }
+    return map;
+  }, [transactions]);
+
+  const expenseCategories = useMemo(
+    () => categories.filter((c) => c.category_type === 'expense'),
+    [categories]
+  );
 
   const currencySymbol =
     settings.default_currency === 'INR' || settings.default_currency === 'IND'
@@ -102,7 +127,11 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         totalNetWorth: getTotalNetWorthCents(),
       });
     } catch {
-      Alert.alert('Export Error', 'Unable to generate spending report PDF.');
+      showAlert({
+        type: 'error',
+        title: 'Export Error',
+        message: 'Unable to generate spending report PDF.',
+      });
     } finally {
       setIsExportingPdf(false);
     }
@@ -153,7 +182,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
       >
         {/* Main Spending Progress Cards */}
         {budgets.map((b) => (
@@ -196,93 +225,86 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
 
         {/* Category Cards with Dynamic Limit Editing */}
         <View style={styles.categoryList}>
-          {categories
-            .filter((c) => c.category_type === 'expense')
-            .map((cat) => {
-              const catTx = transactions.filter(
-                (t) =>
-                  t.category_id === cat.id &&
-                  t.transaction_type === 'expense' &&
-                  !t.is_settlement &&
-                  !t.notes?.toLowerCase().startsWith('settled:')
-              );
-              const spent = catTx.reduce((acc, t) => acc + t.amount, 0);
-              const limit =
-                categoryLimits?.[cat.id] !== undefined
-                  ? categoryLimits[cat.id]
-                  : 500000; // fallback ₹5,000
-              const percentage = limit > 0 ? Math.round((spent / limit) * 100) : 0;
-              const isOver = limit > 0 && spent > limit;
-              const barColor = isOver ? colors.danger : colors.accent;
+          {expenseCategories.map((cat) => {
+            const stats = categoryStatsMap[cat.id] || { spent: 0, count: 0 };
+            const spent = stats.spent;
+            const count = stats.count;
+            const limit =
+              categoryLimits?.[cat.id] !== undefined
+                ? categoryLimits[cat.id]
+                : 500000; // fallback ₹5,000
+            const percentage = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+            const isOver = limit > 0 && spent > limit;
+            const barColor = isOver ? colors.danger : colors.accent;
 
-              return (
-                <View
-                  key={cat.id}
-                  style={[
-                    styles.categoryCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                  ]}
-                >
-                  <View style={styles.cardTop}>
-                    <View style={styles.catLeft}>
-                      <View style={[styles.catColorDot, { backgroundColor: cat.color }]} />
-                      <Text style={[styles.catName, { color: colors.text }]}>{cat.name}</Text>
-                    </View>
+            return (
+              <View
+                key={cat.id}
+                style={[
+                  styles.categoryCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.cardTop}>
+                  <View style={styles.catLeft}>
+                    <View style={[styles.catColorDot, { backgroundColor: cat.color }]} />
+                    <Text style={[styles.catName, { color: colors.text }]}>{cat.name}</Text>
+                  </View>
 
-                    <View style={styles.catRightActions}>
-                      <Text style={[styles.catLimit, { color: colors.text }]}>
-                        {formatCurrency(spent, settings.default_currency)}{' '}
-                        <Text style={{ color: colors.textMuted, fontSize: 11 }}>
-                          / {limit > 0 ? formatCurrency(limit, settings.default_currency) : 'No Cap'}
-                        </Text>
+                  <View style={styles.catRightActions}>
+                    <Text style={[styles.catLimit, { color: colors.text }]}>
+                      {formatCurrency(spent, settings.default_currency)}{' '}
+                      <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                        / {limit > 0 ? formatCurrency(limit, settings.default_currency) : 'No Cap'}
                       </Text>
-
-                      {/* Edit Limit Button */}
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        onPress={() => handleOpenEdit(cat, limit)}
-                        style={[
-                          styles.editLimitBtn,
-                          { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
-                        ]}
-                      >
-                        <Pencil size={12} color={colors.accent} />
-                        <Text style={[styles.editLimitBtnText, { color: colors.accent }]}>
-                          Edit
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Progress Bar */}
-                  <View style={[styles.barBg, { backgroundColor: colors.surfaceSubtle }]}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        {
-                          width: `${limit > 0 ? Math.min(percentage, 100) : 0}%`,
-                          backgroundColor: barColor,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.cardBottom}>
-                    <Text style={[styles.txCount, { color: colors.textMuted }]}>
-                      {catTx.length} movements
                     </Text>
-                    <Text
+
+                    {/* Edit Limit Button */}
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => handleOpenEdit(cat, limit)}
                       style={[
-                        styles.pctText,
-                        { color: isOver ? colors.danger : colors.accent },
+                        styles.editLimitBtn,
+                        { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
                       ]}
                     >
-                      {limit > 0 ? `${percentage}%` : 'Uncapped'}
-                    </Text>
+                      <Pencil size={12} color={colors.accent} />
+                      <Text style={[styles.editLimitBtnText, { color: colors.accent }]}>
+                        Edit
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-              );
-            })}
+
+                {/* Progress Bar */}
+                <View style={[styles.barBg, { backgroundColor: colors.surfaceSubtle }]}>
+                  <View
+                    style={[
+                      styles.barFill,
+                      {
+                        width: `${limit > 0 ? Math.min(percentage, 100) : 0}%`,
+                        backgroundColor: barColor,
+                      },
+                    ]}
+                  />
+                </View>
+
+                <View style={styles.cardBottom}>
+                  <Text style={[styles.txCount, { color: colors.textMuted }]}>
+                    {count} {count === 1 ? 'record' : 'records'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.pctText,
+                      { color: isOver ? colors.danger : colors.accent },
+                    ]}
+                  >
+                    {limit > 0 ? `${percentage}%` : 'Uncapped'}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
 

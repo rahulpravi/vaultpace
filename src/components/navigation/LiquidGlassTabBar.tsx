@@ -26,7 +26,7 @@ export const LiquidGlassTabBar: React.FC<BottomTabBarProps> = ({
   navigation,
 }) => {
   const insets = useSafeAreaInsets();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
 
   // Floating bottom offset accounting for safe area
   const bottomOffset =
@@ -69,6 +69,10 @@ export const LiquidGlassTabBar: React.FC<BottomTabBarProps> = ({
     }
   };
 
+  // User requested Theme Colors
+  const activeColor = '#10B981';
+  const inactiveColor = isDark ? '#9CA3AF' : '#64748B';
+
   return (
     <View
       style={[
@@ -82,48 +86,55 @@ export const LiquidGlassTabBar: React.FC<BottomTabBarProps> = ({
       <View
         style={[
           styles.glassPill,
+          isDark ? styles.darkPill : styles.lightPill,
           Platform.OS === 'web' && ({
-            // Web CSS exact multi-layer inset box-shadow support
-            boxShadow:
-              '0.75em 0.75em 3em hsla(0,0%,0%,0.15) inset, 0 0.05em 0 hsla(0,0%,0%,0.05) inset, 0 -0.15em 0 hsla(0,0%,0%,0.1) inset, 0.75em 0.75em 1em hsla(0,0%,0%,0.1)',
+            boxShadow: isDark
+              ? '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4)'
+              : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
           } as any),
         ]}
       >
         {/* Hardware-accelerated frosted blur */}
         <BlurView
-          intensity={Platform.OS === 'ios' ? 60 : 70}
-          tint="light"
+          intensity={Platform.OS === 'ios' ? (isDark ? 55 : 65) : 70}
+          tint={isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* User requested: background-color: hsl(0,0%,95%) */}
+        {/* Dynamic Theme Background Fill */}
         <View
           style={[
             StyleSheet.absoluteFillObject,
             {
-              backgroundColor: 'hsla(0, 0%, 95%, 0.92)',
+              backgroundColor: isDark
+                ? 'rgba(17, 24, 39, 0.94)' // Dark Mode #111827
+                : 'rgba(255, 255, 255, 0.94)', // Light Mode #FFFFFF
             },
           ]}
         />
 
-        {/* Inset shadow 1: 0.75em 0.75em 3em hsla(0,0%,0%,0.15) inset (Top-left diagonal vignette) */}
+        {/* Subtle Vignette Gradient */}
         <LinearGradient
-          colors={['rgba(0, 0, 0, 0.15)', 'rgba(0, 0, 0, 0.05)', 'transparent']}
+          colors={
+            isDark
+              ? ['rgba(255, 255, 255, 0.04)', 'transparent', 'rgba(0, 0, 0, 0.25)']
+              : ['rgba(0, 0, 0, 0.04)', 'transparent', 'rgba(255, 255, 255, 0.45)']
+          }
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.55, y: 0.55 }}
+          end={{ x: 0.5, y: 1 }}
           style={StyleSheet.absoluteFillObject}
           pointerEvents="none"
         />
 
-        {/* Inset shadow 2 & 3: Top & Bottom rim bevels */}
-        <View style={styles.insetRimOverlay} pointerEvents="none" />
-
-        {/* Soft bottom-right inner reflection highlight */}
-        <LinearGradient
-          colors={['transparent', 'rgba(255, 255, 255, 0.45)']}
-          start={{ x: 0.45, y: 0.45 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
+        {/* Subtle Top & Bottom Rim Bevels */}
+        <View
+          style={[
+            styles.insetRimOverlay,
+            {
+              borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              borderBottomColor: isDark ? 'rgba(0, 0, 0, 0.35)' : 'rgba(0, 0, 0, 0.06)',
+            },
+          ]}
           pointerEvents="none"
         />
 
@@ -132,10 +143,6 @@ export const LiquidGlassTabBar: React.FC<BottomTabBarProps> = ({
           {state.routes.map((route, index) => {
             const isFocused = state.index === index;
             const { label, Icon } = getTabConfig(route.name);
-
-            // On hsl(0,0%,95%) light pill, dark slate text provides optimal high contrast
-            const activeColor = colors.accent;
-            const inactiveColor = '#1E293B';
             const currentColor = isFocused ? activeColor : inactiveColor;
 
             const onPress = () => {
@@ -174,7 +181,7 @@ export const LiquidGlassTabBar: React.FC<BottomTabBarProps> = ({
                   <Icon
                     size={21}
                     color={currentColor}
-                    strokeWidth={isFocused ? 2.6 : 2}
+                    strokeWidth={isFocused ? 2.5 : 2}
                   />
                 </View>
 
@@ -210,14 +217,25 @@ const styles = StyleSheet.create({
   glassPill: {
     width: '100%',
     height: 68,
-    // border-radius: 2em (~32px)
     borderRadius: 32,
     overflow: 'hidden',
     position: 'relative',
-    backgroundColor: 'hsl(0, 0%, 95%)',
-    // Outer shadow: 0.75em 0.75em 1em hsla(0,0%,0%,0.1)
+    borderWidth: 1,
+  },
+  darkPill: {
+    backgroundColor: '#111827',
+    borderColor: '#1F2937',
     shadowColor: '#000',
-    shadowOffset: { width: 12, height: 12 },
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  lightPill: {
+    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 10,
@@ -225,12 +243,8 @@ const styles = StyleSheet.create({
   insetRimOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 32,
-    // 0 0.05em 0 hsla(0,0%,0%,0.05) inset (top rim)
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.05)',
-    // 0 -0.15em 0 hsla(0,0%,0%,0.1) inset (bottom rim)
-    borderBottomWidth: 2.5,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomWidth: 1.5,
   },
   tabsRow: {
     flex: 1,

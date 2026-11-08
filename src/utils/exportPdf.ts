@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { showAlert } from '../store/useAlertStore';
 import { Account, Budget, Category, Transaction, UserSettings } from '../types';
 import { formatCurrency } from '../store/useStore';
 
@@ -331,14 +332,19 @@ export async function exportTransactionsToPdf(data: ExportPdfData): Promise<stri
       });
       return uri;
     } else {
-      Alert.alert(
-        'PDF Generated',
-        `PDF statement generated successfully: ${uri}`
-      );
+      showAlert({
+        type: 'success',
+        title: 'PDF Generated',
+        message: `PDF statement generated successfully: ${uri}`,
+      });
       return uri;
     }
   } catch (error: any) {
-    Alert.alert('Export Failed', error?.message || 'Could not generate PDF statement.');
+    showAlert({
+      type: 'error',
+      title: 'Export Failed',
+      message: error?.message || 'Could not generate PDF statement.',
+    });
     return null;
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -49,79 +49,98 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
   const [isEditMonthlyCapOpen, setIsEditMonthlyCapOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  const totalNetWorth = getTotalNetWorthCents();
-
-  // Filter transactions by selected account
-  const filteredTransactions = selectedAccountId
-    ? transactions.filter(
-        (t) => t.account_id === selectedAccountId || t.to_account_id === selectedAccountId
-      )
-    : transactions;
+  const totalNetWorth = useMemo(() => getTotalNetWorthCents(), [accounts, getTotalNetWorthCents]);
 
   // Guarantee only user accounts (Cash Wallet, Bank Account, Savings Vault, etc.) are rendered
-  const userAccounts = accounts.filter(
-    (acc) =>
-      acc &&
-      acc.name?.toLowerCase() !== 'consolidated' &&
-      acc.name?.toLowerCase() !== 'all' &&
-      acc.id !== 'consolidated' &&
-      acc.id !== 'all'
+  const userAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (acc) =>
+          acc &&
+          acc.name?.toLowerCase() !== 'consolidated' &&
+          acc.name?.toLowerCase() !== 'all' &&
+          acc.id !== 'consolidated' &&
+          acc.id !== 'all'
+      ),
+    [accounts]
   );
 
-  const selectedAccount = selectedAccountId
-    ? userAccounts.find((a) => a.id === selectedAccountId)
-    : null;
-
-  // Active Debts
-  const activeDebts = transactions.filter(
-    (t) => (t.transaction_type === 'borrow' || t.transaction_type === 'lend') && !t.is_settled
+  const selectedAccount = useMemo(
+    () => (selectedAccountId ? userAccounts.find((a) => a.id === selectedAccountId) || null : null),
+    [selectedAccountId, userAccounts]
   );
-  const activeLent = activeDebts
-    .filter((t) => t.transaction_type === 'lend')
-    .reduce((acc, t) => acc + t.amount, 0);
-  const activeBorrowed = activeDebts
-    .filter((t) => t.transaction_type === 'borrow')
-    .reduce((acc, t) => acc + t.amount, 0);
 
-  // =========================================================================
-  // Standard Income & Expense Calculations (Dashboard Accuracy)
-  //
-  // Strict Rules Applied:
-  // 1. Exclude from Income: "Borrow" transactions increase the wallet balance
-  //    (liabilities), but MUST NOT be added to Total Income or Monthly Income statistics.
-  // 2. Exclude from Expense: "Lend" transactions decrease the wallet balance
-  //    (receivables), but MUST NOT be added to Total Spent or Monthly Expense statistics.
-  // 3. Only standard "Income" and "Expense" types affect the Home screen Income/Spent cards.
-  //    Borrow/Lend exclusively affect the specific wallet balance and the separate Debts/IOUs ledger.
-  // =========================================================================
-  const isStandardIncome = (t: (typeof transactions)[0]) =>
-    t.transaction_type === 'income' &&
-    !t.is_settlement &&
-    !t.notes?.toLowerCase().startsWith('settled:');
+  // Fast O(1) Lookup Maps for Category & Account Entities
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
-  const isStandardExpense = (t: (typeof transactions)[0]) =>
-    t.transaction_type === 'expense' &&
-    !t.is_settlement &&
-    !t.notes?.toLowerCase().startsWith('settled:');
+  // Filter transactions by selected account with useMemo
+  const filteredTransactions = useMemo(
+    () =>
+      selectedAccountId
+        ? transactions.filter(
+            (t) => t.account_id === selectedAccountId || t.to_account_id === selectedAccountId
+          )
+        : transactions,
+    [transactions, selectedAccountId]
+  );
 
-  // Total Income & Total Spent (all-time standard transactions for active view/wallet)
-  const totalIncome = filteredTransactions
-    .filter(isStandardIncome)
-    .reduce((acc, t) => acc + t.amount, 0);
+  // Active Debts aggregated in a single O(N) pass
+  const { activeDebts, activeLent, activeBorrowed } = useMemo(() => {
+    let lent = 0;
+    let borrowed = 0;
+    const debts: typeof transactions = [];
+    for (const t of transactions) {
+      if ((t.transaction_type === 'borrow' || t.transaction_type === 'lend') && !t.is_settled) {
+        debts.push(t);
+        if (t.transaction_type === 'lend') {
+          lent += t.amount;
+        } else if (t.transaction_type === 'borrow') {
+          borrowed += t.amount;
+        }
+      }
+    }
+    return { activeDebts: debts, activeLent: lent, activeBorrowed: borrowed };
+  }, [transactions]);
 
-  const totalSpent = filteredTransactions
-    .filter(isStandardExpense)
-    .reduce((acc, t) => acc + t.amount, 0);
+  // Total & Monthly Income & Expense calculated in a single O(N) pass
+  const { totalIncome, totalSpent, monthlyIncome, monthlyExpense } = useMemo(() => {
+    const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+    let inc = 0;
+    let spent = 0;
+    let mInc = 0;
+    let mSpent = 0;
 
-  // Monthly Income & Monthly Expense (current calendar month standard transactions)
-  const currentMonthPrefix = new Date().toISOString().slice(0, 7);
-  const monthlyIncome = filteredTransactions
-    .filter((t) => isStandardIncome(t) && t.transaction_date?.startsWith(currentMonthPrefix))
-    .reduce((acc, t) => acc + t.amount, 0);
+    for (const t of filteredTransactions) {
+      if (t.is_settlement || t.notes?.toLowerCase().startsWith('settled:')) continue;
 
-  const monthlyExpense = filteredTransactions
-    .filter((t) => isStandardExpense(t) && t.transaction_date?.startsWith(currentMonthPrefix))
-    .reduce((acc, t) => acc + t.amount, 0);
+      const isCurrentMonth = t.transaction_date?.startsWith(currentMonthPrefix);
+
+      if (t.transaction_type === 'income') {
+        inc += t.amount;
+        if (isCurrentMonth) mInc += t.amount;
+      } else if (t.transaction_type === 'expense') {
+        spent += t.amount;
+        if (isCurrentMonth) mSpent += t.amount;
+      }
+    }
+
+    return {
+      totalIncome: inc,
+      totalSpent: spent,
+      monthlyIncome: mInc,
+      monthlyExpense: mSpent,
+    };
+  }, [filteredTransactions]);
+
+  const recentTransactions = useMemo(
+    () => filteredTransactions.slice(0, 5),
+    [filteredTransactions]
+  );
+
+  const handleEditTransaction = useCallback((item: Transaction) => {
+    setEditingTransaction(item);
+  }, []);
 
   const activeBudget = budgets[0];
 
@@ -135,7 +154,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           styles.scrollContent,
           {
             paddingTop: Math.max(insets.top, 16),
-            paddingBottom: insets.bottom + 110,
+            paddingBottom: insets.bottom + 120,
           },
         ]}
       >
@@ -357,18 +376,16 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             </Text>
           </View>
         ) : (
-          filteredTransactions
-            .slice(0, 5)
-            .map((tx) => (
-              <TransactionRow
-                key={tx.id}
-                transaction={tx}
-                category={categories.find((c) => c.id === tx.category_id)}
-                account={accounts.find((a) => a.id === tx.account_id)}
-                onDelete={deleteTransaction}
-                onPress={(item) => setEditingTransaction(item)}
-              />
-            ))
+          recentTransactions.map((tx) => (
+            <TransactionRow
+              key={tx.id}
+              transaction={tx}
+              category={categoryMap.get(tx.category_id || '')}
+              account={accountMap.get(tx.account_id)}
+              onDelete={deleteTransaction}
+              onPress={handleEditTransaction}
+            />
+          ))
         )}
       </ScrollView>
 
@@ -383,7 +400,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           styles.fab,
           {
             backgroundColor: colors.accent,
-            bottom: insets.bottom + 98,
+            bottom: Math.max(insets.bottom, 16) + 100,
           },
         ]}
       >

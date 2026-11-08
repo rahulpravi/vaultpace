@@ -5,8 +5,8 @@ import {
   Modal,
   TouchableOpacity,
   StyleSheet,
-  Alert,
 } from 'react-native';
+import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { useStore } from '../../store/useStore';
 import * as Haptics from 'expo-haptics';
@@ -72,10 +72,12 @@ export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSu
           // Success!
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setSecurityPin(updated);
-          Alert.alert(
-            'Security PIN Configured',
-            'Your 4-digit PIN is now active. You will be prompted to enter it whenever you access VaultPace.'
-          );
+          showAlert({
+            type: 'success',
+            title: 'Security PIN Configured',
+            message:
+              'Your 4-digit PIN is now active. You will be prompted to enter it whenever you access VaultPace.',
+          });
           resetAll();
           onSuccess?.();
           onClose();

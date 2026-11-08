@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -86,10 +86,18 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   const [tempAccId, setTempAccId] = useState<string | null>(null);
   const [tempCatName, setTempCatName] = useState<string | null>(null);
 
-  // Other Modals
+  // Fast O(1) Lookup Maps
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+
+  // Other Modals & Stable Callbacks
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+
+  const handleEditTransaction = useCallback((item: Transaction) => {
+    setEditingTransaction(item);
+  }, []);
 
   // Available distinct months extracted from all transactions
   const availableMonths = useMemo(() => {
@@ -357,7 +365,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
       >
         {/* Compact Search & Filter Bar */}
         <View style={styles.searchAndFilterRow}>
@@ -572,10 +580,10 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
                 <TransactionRow
                   key={tx.id}
                   transaction={tx}
-                  category={categories.find((c) => c.id === tx.category_id)}
-                  account={accounts.find((a) => a.id === tx.account_id)}
+                  category={categoryMap.get(tx.category_id || '')}
+                  account={accountMap.get(tx.account_id)}
                   onDelete={deleteTransaction}
-                  onPress={(item) => setEditingTransaction(item)}
+                  onPress={handleEditTransaction}
                 />
               ))}
             </View>

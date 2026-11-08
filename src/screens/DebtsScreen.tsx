@@ -7,8 +7,8 @@ import {
   StyleSheet,
   StatusBar,
   Modal,
-  Alert,
 } from 'react-native';
+import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { useStore, formatCurrency } from '../store/useStore';
@@ -126,22 +126,24 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
     const contact = settlementTargetDebt.contact_name || 'Contact';
     const isBorrow = settlementTargetDebt.transaction_type === 'borrow';
 
-    Alert.alert(
-      'Debt Settled',
-      isBorrow
+    showAlert({
+      type: 'success',
+      title: 'Debt Settled',
+      message: isBorrow
         ? `Marked repayment to ${contact} as completed. Wallet balance updated.`
-        : `Marked debt collection from ${contact} as completed. Wallet balance updated.`
-    );
+        : `Marked debt collection from ${contact} as completed. Wallet balance updated.`,
+    });
 
     setSettlementTargetDebt(null);
   };
 
   const handleDeleteDebt = (id: string, name: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      'Remove Record',
-      `Are you sure you want to remove this debt record for "${name}"?`,
-      [
+    showAlert({
+      type: 'danger',
+      title: 'Remove Record',
+      message: `Are you sure you want to remove this debt record for "${name}"?`,
+      buttons: [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -151,8 +153,8 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const formatDueDateDisplay = (dueDateStr?: string) => {

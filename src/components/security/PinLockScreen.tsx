@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Alert,
   Animated,
 } from 'react-native';
+import { showAlert } from '../../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
@@ -161,10 +161,12 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
         if (bioResult.success) {
           resetSecurityPin();
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert(
-            'PIN Cleared',
-            'Your security PIN has been cleared and your vault unlocked. You can configure a new PIN anytime in Settings.'
-          );
+          showAlert({
+            type: 'success',
+            title: 'PIN Cleared',
+            message:
+              'Your security PIN has been cleared and your vault unlocked. You can configure a new PIN anytime in Settings.',
+          });
           return;
         }
       } catch {
@@ -173,10 +175,12 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
     }
 
     // Safety confirmation dialog
-    Alert.alert(
-      'Reset Vault Security PIN',
-      'If you have forgotten your PIN, resetting will clear your current PIN and unlock your local vault.',
-      [
+    showAlert({
+      type: 'danger',
+      title: 'Reset Vault Security PIN',
+      message:
+        'If you have forgotten your PIN, resetting will clear your current PIN and unlock your local vault.',
+      buttons: [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reset PIN & Unlock',
@@ -184,14 +188,15 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
           onPress: () => {
             resetSecurityPin();
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert(
-              'PIN Reset Complete',
-              'Your PIN has been removed and your vault unlocked.'
-            );
+            showAlert({
+              type: 'success',
+              title: 'PIN Reset Complete',
+              message: 'Your PIN has been removed and your vault unlocked.',
+            });
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   return (

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { Transaction, Category, Account } from '../../types';
 import { formatCurrency } from '../../store/useStore';
@@ -22,7 +23,7 @@ interface TransactionRowProps {
   onPress?: (transaction: Transaction) => void;
 }
 
-export const TransactionRow: React.FC<TransactionRowProps> = ({
+export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
   transaction,
   category,
   account,
@@ -53,14 +54,19 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
 
   const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Delete Movement', 'Are you sure you want to remove this record?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => onDelete?.(transaction.id),
-      },
-    ]);
+    showAlert({
+      type: 'danger',
+      title: 'Delete Movement',
+      message: 'Are you sure you want to remove this record?',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => onDelete?.(transaction.id),
+        },
+      ],
+    });
   };
 
   const titleText = isBorrow
@@ -200,7 +206,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

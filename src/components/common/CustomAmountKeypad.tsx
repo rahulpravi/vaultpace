@@ -41,7 +41,7 @@ interface KeypadKeyProps {
   textStyle?: StyleProp<TextStyle>;
 }
 
-const KeypadKey: React.FC<KeypadKeyProps> = ({
+const KeypadKey: React.FC<KeypadKeyProps> = React.memo(({
   label,
   icon,
   onPress,
@@ -140,7 +140,7 @@ const KeypadKey: React.FC<KeypadKeyProps> = ({
       </Pressable>
     </Animated.View>
   );
-};
+});
 
 export const CustomAmountKeypad: React.FC<CustomAmountKeypadProps> = ({
   value,

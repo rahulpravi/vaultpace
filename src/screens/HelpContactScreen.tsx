@@ -7,11 +7,11 @@ import {
   TextInput,
   StyleSheet,
   Linking,
-  Alert,
   Platform,
   StatusBar,
   KeyboardAvoidingView,
 } from 'react-native';
+import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { RootStackScreenProps } from '../navigation/types';
@@ -99,10 +99,18 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Email Support', `You can reach the developer directly at: ${email}`);
+        showAlert({
+          type: 'info',
+          title: 'Email Support',
+          message: `You can reach the developer directly at: ${email}`,
+        });
       }
     } catch (e) {
-      Alert.alert('Email Support', `Please send your inquiries to: ${email}`);
+      showAlert({
+        type: 'info',
+        title: 'Email Support',
+        message: `Please send your inquiries to: ${email}`,
+      });
     }
   };
 
@@ -113,16 +121,28 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert(title, `Link: ${url}`);
+        showAlert({
+          type: 'info',
+          title: title,
+          message: `Link: ${url}`,
+        });
       }
     } catch {
-      Alert.alert('Unable to Open', `Could not open link: ${url}`);
+      showAlert({
+        type: 'error',
+        title: 'Unable to Open',
+        message: `Could not open link: ${url}`,
+      });
     }
   };
 
   const handleSendFeedback = async () => {
     if (!feedbackText.trim()) {
-      Alert.alert('Empty Note', 'Please enter your thoughts or feedback for the developer.');
+      showAlert({
+        type: 'warning',
+        title: 'Empty Note',
+        message: 'Please enter your thoughts or feedback for the developer.',
+      });
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -138,13 +158,18 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert(
-          'Feedback Recorded',
-          `Thank you! You can also reach the developer directly at: ${email}`
-        );
+        showAlert({
+          type: 'success',
+          title: 'Feedback Recorded',
+          message: `Thank you! You can also reach the developer directly at: ${email}`,
+        });
       }
     } catch {
-      Alert.alert('Note Ready', `Please send your feedback to: ${email}`);
+      showAlert({
+        type: 'info',
+        title: 'Note Ready',
+        message: `Please send your feedback to: ${email}`,
+      });
     }
 
     setFeedbackSent(true);

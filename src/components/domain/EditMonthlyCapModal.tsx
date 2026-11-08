@@ -7,8 +7,8 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
+import { showAlert } from '../../store/useAlertStore';
 import * as Haptics from 'expo-haptics';
 import { X, Check, Target, Plus } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/useTheme';
@@ -59,7 +59,11 @@ export const EditMonthlyCapModal: React.FC<EditMonthlyCapModalProps> = ({
     const cents = parseAmountToCents(limitStr);
     if (cents <= 0) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Invalid Cap', 'Please enter a spending limit greater than zero.');
+      showAlert({
+        type: 'warning',
+        title: 'Invalid Cap',
+        message: 'Please enter a spending limit greater than zero.',
+      });
       return;
     }
 

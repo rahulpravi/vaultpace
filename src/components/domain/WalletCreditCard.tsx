@@ -39,7 +39,7 @@ interface WalletCreditCardProps {
 export const ContactlessNfcIcon: React.FC<{
   size?: number;
   color?: string;
-}> = ({ size = 20, color = 'rgba(255, 255, 255, 0.85)' }) => {
+}> = React.memo(({ size = 20, color = 'rgba(255, 255, 255, 0.85)' }) => {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       {/* Center signal dot */}
@@ -67,12 +67,12 @@ export const ContactlessNfcIcon: React.FC<{
       />
     </Svg>
   );
-};
+});
 
 /**
  * Subtle curved background lines pattern (matching reference image curves)
  */
-export const CardCurvesPattern: React.FC = () => {
+export const CardCurvesPattern: React.FC = React.memo(() => {
   return (
     <Svg
       style={StyleSheet.absoluteFillObject}
@@ -130,9 +130,9 @@ export const CardCurvesPattern: React.FC = () => {
       />
     </Svg>
   );
-};
+});
 
-export const WalletCreditCard: React.FC<WalletCreditCardProps> = ({
+export const WalletCreditCard: React.FC<WalletCreditCardProps> = React.memo(({
   account,
   isActive = false,
   isFront = false,
@@ -347,7 +347,7 @@ export const WalletCreditCard: React.FC<WalletCreditCardProps> = ({
       </LinearGradient>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   cardContainer: {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   Modal,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { useStore, formatCurrency, parseAmountToCents } from '../store/useStore';
@@ -51,13 +51,17 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
   const { accounts, addAccount, deleteAccount, settings } = useStore();
 
   // Guarantee only user accounts (Cash Wallet, Bank Account, Savings Vault, etc.) are rendered
-  const userAccounts = accounts.filter(
-    (acc) =>
-      acc &&
-      acc.name?.toLowerCase() !== 'consolidated' &&
-      acc.name?.toLowerCase() !== 'all' &&
-      acc.id !== 'consolidated' &&
-      acc.id !== 'all'
+  const userAccounts = useMemo(
+    () =>
+      accounts.filter(
+        (acc) =>
+          acc &&
+          acc.name?.toLowerCase() !== 'consolidated' &&
+          acc.name?.toLowerCase() !== 'all' &&
+          acc.id !== 'consolidated' &&
+          acc.id !== 'all'
+      ),
+    [accounts]
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -128,15 +132,20 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
 
   const handleDelete = (id: string, accName: string) => {
     if (userAccounts.length <= 1) {
-      Alert.alert('Cannot Delete', 'You must maintain at least one active wallet.');
+      showAlert({
+        type: 'warning',
+        title: 'Cannot Delete',
+        message: 'You must maintain at least one active wallet.',
+      });
       return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Remove Wallet',
-      `Are you sure you want to delete "${accName}"? Movements associated with this wallet will be unlinked.`,
-      [
+    showAlert({
+      type: 'danger',
+      title: 'Remove Wallet',
+      message: `Are you sure you want to delete "${accName}"? Movements associated with this wallet will be unlinked.`,
+      buttons: [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete Wallet',
@@ -146,8 +155,8 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
-      ]
-    );
+      ],
+    });
   };
 
   const currentCurrencyInfo =
@@ -189,7 +198,7 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
       >
         <View style={styles.accountGrid}>
           {userAccounts.map((acc) => {

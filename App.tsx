@@ -6,6 +6,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { PinLockScreen } from './src/components/security/PinLockScreen';
+import { CustomAlertModal } from './src/components/common/CustomAlertModal';
 import { useAppTheme } from './src/theme/useTheme';
 import { useStore } from './src/store/useStore';
 
@@ -53,6 +54,7 @@ function AppContent() {
     <NavigationContainer theme={navigationTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
       {isAppLocked ? <PinLockScreen /> : <RootNavigator />}
+      <CustomAlertModal />
     </NavigationContainer>
   );
 }

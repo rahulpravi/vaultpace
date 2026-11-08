@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { Budget, Transaction } from '../../types';
@@ -12,24 +12,26 @@ interface BudgetProgressCardProps {
   onPressEdit?: () => void;
 }
 
-export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
+export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = React.memo(({
   budget,
   transactions,
   onPressEdit,
 }) => {
   const { colors } = useAppTheme();
 
-  // Filter transactions for this budget (standard expenses only)
-  const spentCents = transactions
-    .filter((t) => {
-      if (t.transaction_type !== 'expense') return false;
-      if (t.is_settlement || t.notes?.toLowerCase().startsWith('settled:')) return false;
-      if (budget.category_ids && budget.category_ids.length > 0) {
-        return t.category_id && budget.category_ids.includes(t.category_id);
-      }
-      return true;
-    })
-    .reduce((acc, t) => acc + t.amount, 0);
+  // Filter transactions for this budget (standard expenses only) with useMemo
+  const spentCents = useMemo(() => {
+    return transactions
+      .filter((t) => {
+        if (t.transaction_type !== 'expense') return false;
+        if (t.is_settlement || t.notes?.toLowerCase().startsWith('settled:')) return false;
+        if (budget.category_ids && budget.category_ids.length > 0) {
+          return t.category_id && budget.category_ids.includes(t.category_id);
+        }
+        return true;
+      })
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [transactions, budget.category_ids]);
 
   const percentage = Math.round((spentCents / budget.amount_limit) * 100);
   const isOver = spentCents > budget.amount_limit;
@@ -131,7 +133,7 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

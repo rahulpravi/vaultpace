@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Switch,
   StyleSheet,
-  Alert,
   Share,
   StatusBar,
 } from 'react-native';
+import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { ACCENT_PALETTES } from '../theme/colors';
@@ -93,19 +93,22 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       if (!hasHardware) {
-        Alert.alert(
-          'Biometrics Not Supported',
-          'Your device hardware does not support biometric authentication.'
-        );
+        showAlert({
+          type: 'warning',
+          title: 'Biometrics Not Supported',
+          message: 'Your device hardware does not support biometric authentication.',
+        });
         return;
       }
 
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
       if (!isEnrolled) {
-        Alert.alert(
-          'Biometrics Not Enrolled',
-          'No Face ID or Fingerprint was detected on this device. Please enroll biometrics in your Android/iOS settings first.'
-        );
+        showAlert({
+          type: 'warning',
+          title: 'Biometrics Not Enrolled',
+          message:
+            'No Face ID or Fingerprint was detected on this device. Please enroll biometrics in your Android/iOS settings first.',
+        });
         return;
       }
 
@@ -117,23 +120,30 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
       if (authResult.success) {
         updateSettings({ biometrics_enabled: true });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Biometrics Enabled',
-          'Biometric authentication is now active. Face ID / Fingerprint will be required upon app launch.'
-        );
+        showAlert({
+          type: 'success',
+          title: 'Biometrics Enabled',
+          message:
+            'Biometric authentication is now active. Face ID / Fingerprint will be required upon app launch.',
+        });
       }
     } catch (e: any) {
-      Alert.alert('Authentication Error', e?.message || 'Could not verify biometrics.');
+      showAlert({
+        type: 'error',
+        title: 'Authentication Error',
+        message: e?.message || 'Could not verify biometrics.',
+      });
     }
   };
 
   const handlePinAction = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (settings.pin_lock_enabled) {
-      Alert.alert(
-        'PIN Security Lock',
-        'Your custom 4-digit PIN is currently active. What would you like to do?',
-        [
+      showAlert({
+        type: 'security',
+        title: 'PIN Security Lock',
+        message: 'Your custom 4-digit PIN is currently active. What would you like to do?',
+        buttons: [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Change PIN',
@@ -145,11 +155,15 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             onPress: () => {
               resetSecurityPin();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('PIN Removed', 'PIN protection has been disabled.');
+              showAlert({
+                type: 'success',
+                title: 'PIN Removed',
+                message: 'PIN protection has been disabled.',
+              });
             },
           },
-        ]
-      );
+        ],
+      });
     } else {
       setIsSetPinModalOpen(true);
     }
@@ -157,10 +171,18 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
   const handleLockNow = () => {
     if (!settings.biometrics_enabled && !settings.pin_lock_enabled) {
-      Alert.alert(
-        'No Lock Configured',
-        'Please enable Biometric Lock or configure a 4-Digit PIN first.'
-      );
+      showAlert({
+        type: 'security',
+        title: 'No Lock Configured',
+        message: 'Please enable Biometric Lock or configure a 4-Digit PIN first.',
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Setup PIN',
+            onPress: () => setIsSetPinModalOpen(true),
+          },
+        ],
+      });
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -171,14 +193,16 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (!settings.security_pin) {
-      Alert.alert(
-        'Security PIN Required',
-        'Please set up your 4-digit Security PIN first before exporting an encrypted vault backup.',
-        [
+      showAlert({
+        type: 'security',
+        title: 'Security PIN Required',
+        message:
+          'Please set up your 4-digit Security PIN first before exporting an encrypted vault backup.',
+        buttons: [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Set Up PIN', onPress: () => setIsSetPinModalOpen(true) },
-        ]
-      );
+        ],
+      });
       return;
     }
 
@@ -202,7 +226,11 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
           updateSettings({ last_backup_date: new Date().toISOString() });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (err: any) {
-          Alert.alert('Backup Failed', err?.message || 'Could not export backup file.');
+          showAlert({
+            type: 'error',
+            title: 'Backup Failed',
+            message: err?.message || 'Could not export backup file.',
+          });
         } finally {
           setIsExportingBackup(false);
         }
@@ -214,14 +242,15 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (!settings.security_pin) {
-      Alert.alert(
-        'Security PIN Required',
-        'Please configure your 4-digit Security PIN first before restoring backups.',
-        [
+      showAlert({
+        type: 'security',
+        title: 'Security PIN Required',
+        message: 'Please configure your 4-digit Security PIN first before restoring backups.',
+        buttons: [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Set Up PIN', onPress: () => setIsSetPinModalOpen(true) },
-        ]
-      );
+        ],
+      });
       return;
     }
 
@@ -239,7 +268,11 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             return;
           }
           if (!result.success || !result.data) {
-            Alert.alert('Restore Failed', result.error || 'Invalid or corrupted backup file.');
+            showAlert({
+              type: 'error',
+              title: 'Restore Failed',
+              message: result.error || 'Invalid or corrupted backup file.',
+            });
             return;
           }
 
@@ -248,13 +281,15 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             ? new Date(meta.exported_at).toLocaleDateString()
             : 'Unknown date';
 
-          Alert.alert(
-            'Confirm Restore',
-            `Backup Date: ${backupDate}\n` +
+          showAlert({
+            type: 'danger',
+            title: 'Confirm Restore',
+            message:
+              `Backup Date: ${backupDate}\n` +
               `Wallets: ${meta?.accountsCount || 0}\n` +
               `Transactions: ${meta?.transactionsCount || 0} (${meta?.debtsCount || 0} loan records)\n\n` +
               `Do you want to restore these records into your VaultPace vault?`,
-            [
+            buttons: [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Restore Now',
@@ -262,16 +297,22 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
                 onPress: () => {
                   restoreBackupData(data);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  Alert.alert(
-                    'Vault Restored',
-                    'All wallets, transactions, debts/IOUs, and category limits have been restored successfully!'
-                  );
+                  showAlert({
+                    type: 'success',
+                    title: 'Vault Restored',
+                    message:
+                      'All wallets, transactions, debts/IOUs, and category limits have been restored successfully!',
+                  });
                 },
               },
-            ]
-          );
+            ],
+          });
         } catch (err: any) {
-          Alert.alert('Restore Error', err?.message || 'Failed to restore backup file.');
+          showAlert({
+            type: 'error',
+            title: 'Restore Error',
+            message: err?.message || 'Failed to restore backup file.',
+          });
         } finally {
           setIsRestoringBackup(false);
         }
@@ -284,7 +325,8 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
     setPinModalConfig({
       visible: true,
       title: 'Authorize PDF Export',
-      subtitle: 'Enter your 4-digit PIN to generate and download your confidential financial PDF statement.',
+      subtitle:
+        'Enter your 4-digit PIN to generate and download your confidential financial PDF statement.',
       actionType: 'primary',
       onSuccess: async () => {
         try {
@@ -298,7 +340,11 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
             totalNetWorth: getTotalNetWorthCents(),
           });
         } catch {
-          Alert.alert('Export Error', 'Unable to generate PDF statement.');
+          showAlert({
+            type: 'error',
+            title: 'Export Error',
+            message: 'Unable to generate PDF statement.',
+          });
         } finally {
           setIsExportingPdf(false);
         }
@@ -323,7 +369,11 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
         message: csv,
       });
     } catch {
-      Alert.alert('Export Error', 'Unable to share CSV ledger.');
+      showAlert({
+        type: 'error',
+        title: 'Export Error',
+        message: 'Unable to share CSV ledger.',
+      });
     }
   };
 
@@ -338,10 +388,12 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
       onSuccess: () => {
         cleanSlateFinancialRecords();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Clean Slate Ready',
-          'All financial transactions, wallet balances, and custom limits have been wiped. Your security PIN, biometrics, and preferences are preserved.'
-        );
+        showAlert({
+          type: 'success',
+          title: 'Clean Slate Ready',
+          message:
+            'All financial transactions, wallet balances, and custom limits have been wiped. Your security PIN, biometrics, and preferences are preserved.',
+        });
       },
     });
   };
@@ -379,7 +431,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 90 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
       >
         {/* Help & Support Banner */}
         <TouchableOpacity

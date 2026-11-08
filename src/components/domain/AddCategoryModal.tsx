@@ -9,8 +9,8 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
+import { showAlert } from '../../store/useAlertStore';
 import * as Haptics from 'expo-haptics';
 import { X, Check, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { useAppTheme } from '../../theme/useTheme';
@@ -59,7 +59,11 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
     const trimmed = name.trim();
     if (!trimmed) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Category Name Required', 'Please enter a name for your custom category.');
+      showAlert({
+        type: 'warning',
+        title: 'Category Name Required',
+        message: 'Please enter a name for your custom category.',
+      });
       return;
     }
 
@@ -71,7 +75,11 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
     );
     if (duplicate) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Duplicate Category', `A category named "${trimmed}" already exists.`);
+      showAlert({
+        type: 'warning',
+        title: 'Duplicate Category',
+        message: `A category named "${trimmed}" already exists.`,
+      });
       return;
     }
 

@@ -11,8 +11,8 @@ import {
   Platform,
   Keyboard,
   Switch,
-  Alert,
 } from 'react-native';
+import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { useStore, parseAmountToCents, formatCurrency } from '../../store/useStore';
 import { TransactionType, Transaction } from '../../types';
@@ -404,9 +404,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         const projected = available - cents;
         if (projected < 0) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert(
-            'Negative Balance Warning',
-            `Spending ${formatCurrency(cents, activeCurrency)} from "${
+          showAlert({
+            type: 'warning',
+            title: 'Negative Balance Warning',
+            message: `Spending ${formatCurrency(cents, activeCurrency)} from "${
               sourceAccount.name
             }" exceeds your available balance (${formatCurrency(
               available,
@@ -415,15 +416,15 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
               projected,
               activeCurrency
             )}.\n\nDo you want to proceed?`,
-            [
+            buttons: [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Proceed Anyway',
                 style: 'destructive',
                 onPress: () => executeSave(cents, finalCategoryId),
               },
-            ]
-          );
+            ],
+          });
           return;
         }
       }

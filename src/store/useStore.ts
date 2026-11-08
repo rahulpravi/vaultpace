@@ -794,6 +794,32 @@ export const useStore = create<TrackerStore>()(
   )
 );
 
+// Cached NumberFormat instances to prevent garbage collection spikes
+const numberFormatterCache: Record<string, Intl.NumberFormat> = {};
+
+function getCachedNumberFormatter(locale: string): Intl.NumberFormat {
+  let formatter = numberFormatterCache[locale];
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    numberFormatterCache[locale] = formatter;
+  }
+  return formatter;
+}
+
+const SYMBOL_MAP: Record<string, string> = {
+  INR: '₹',
+  IND: '₹',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  CAD: 'CA$',
+  AUD: 'A$',
+};
+
 export function formatCurrency(cents: number, currency?: string): string {
   const isNegative = cents < 0;
   const absDollars = Math.abs(cents) / 100;
@@ -801,24 +827,10 @@ export function formatCurrency(cents: number, currency?: string): string {
     currency || useStore.getState().settings?.default_currency || 'INR'
   ).toUpperCase();
 
-  const symbolMap: Record<string, string> = {
-    INR: '₹',
-    IND: '₹',
-    USD: '$',
-    EUR: '€',
-    GBP: '£',
-    JPY: '¥',
-    CAD: 'CA$',
-    AUD: 'A$',
-  };
-
-  const sym = symbolMap[selectedCurrency] || selectedCurrency + ' ';
+  const sym = SYMBOL_MAP[selectedCurrency] || selectedCurrency + ' ';
   const locale = selectedCurrency === 'INR' || selectedCurrency === 'IND' ? 'en-IN' : 'en-US';
 
-  const formatted = absDollars.toLocaleString(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const formatted = getCachedNumberFormatter(locale).format(absDollars);
 
   return isNegative ? `-${sym}${formatted}` : `${sym}${formatted}`;
 }
