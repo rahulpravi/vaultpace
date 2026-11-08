@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -48,7 +48,10 @@ const CURRENCY_OPTIONS = [
 export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const { accounts, addAccount, deleteAccount, settings } = useStore();
+  const accounts = useStore((s) => s.accounts);
+  const addAccount = useStore((s) => s.addAccount);
+  const deleteAccount = useStore((s) => s.deleteAccount);
+  const settings = useStore((s) => s.settings);
 
   // Guarantee only user accounts (Cash Wallet, Bank Account, Savings Vault, etc.) are rendered
   const userAccounts = useMemo(
@@ -130,34 +133,37 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
     setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string, accName: string) => {
-    if (userAccounts.length <= 1) {
-      showAlert({
-        type: 'warning',
-        title: 'Cannot Delete',
-        message: 'You must maintain at least one active wallet.',
-      });
-      return;
-    }
+  const handleDelete = useCallback(
+    (id: string, accName: string) => {
+      if (userAccounts.length <= 1) {
+        showAlert({
+          type: 'warning',
+          title: 'Cannot Delete',
+          message: 'You must maintain at least one active wallet.',
+        });
+        return;
+      }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    showAlert({
-      type: 'danger',
-      title: 'Remove Wallet',
-      message: `Are you sure you want to delete "${accName}"? Movements associated with this wallet will be unlinked.`,
-      buttons: [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Wallet',
-          style: 'destructive',
-          onPress: () => {
-            deleteAccount(id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      showAlert({
+        type: 'danger',
+        title: 'Remove Wallet',
+        message: `Are you sure you want to delete "${accName}"? Movements associated with this wallet will be unlinked.`,
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete Wallet',
+            style: 'destructive',
+            onPress: () => {
+              deleteAccount(id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            },
           },
-        },
-      ],
-    });
-  };
+        ],
+      });
+    },
+    [userAccounts.length, deleteAccount]
+  );
 
   const currentCurrencyInfo =
     CURRENCY_OPTIONS.find((c) => c.code === currency) || {

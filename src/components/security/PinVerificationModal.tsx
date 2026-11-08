@@ -40,7 +40,7 @@ export const PinVerificationModal: React.FC<PinVerificationModalProps> = ({
   onClose,
 }) => {
   const { colors } = useAppTheme();
-  const { settings } = useStore();
+  const settings = useStore((s) => s.settings);
 
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

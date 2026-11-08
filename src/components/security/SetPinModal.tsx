@@ -29,7 +29,7 @@ function shuffleDigits(): number[] {
 
 export const SetPinModal: React.FC<SetPinModalProps> = ({ visible, onClose, onSuccess }) => {
   const { colors } = useAppTheme();
-  const { setSecurityPin } = useStore();
+  const setSecurityPin = useStore((s) => s.setSecurityPin);
 
   const [step, setStep] = useState<'create' | 'confirm'>('create');
   const [firstPin, setFirstPin] = useState('');

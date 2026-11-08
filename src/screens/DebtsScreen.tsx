@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -40,7 +40,11 @@ type FilterTab = 'all_active' | 'lent' | 'borrowed' | 'settled';
 export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const { transactions, accounts, settings, settleDebt, deleteTransaction } = useStore();
+  const transactions = useStore((s) => s.transactions);
+  const accounts = useStore((s) => s.accounts);
+  const settings = useStore((s) => s.settings);
+  const settleDebt = useStore((s) => s.settleDebt);
+  const deleteTransaction = useStore((s) => s.deleteTransaction);
 
   const [activeTab, setActiveTab] = useState<FilterTab>('all_active');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -117,7 +121,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
     setSelectedSettlementAccountId(userAccounts[0]?.id || debt.account_id);
   };
 
-  const handleConfirmSettlement = () => {
+  const handleConfirmSettlement = useCallback(() => {
     if (!settlementTargetDebt || !selectedSettlementAccountId) return;
 
     settleDebt(settlementTargetDebt.id, selectedSettlementAccountId);
@@ -135,41 +139,47 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
     });
 
     setSettlementTargetDebt(null);
-  };
+  }, [settlementTargetDebt, selectedSettlementAccountId, settleDebt]);
 
-  const handleDeleteDebt = (id: string, name: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    showAlert({
-      type: 'danger',
-      title: 'Remove Record',
-      message: `Are you sure you want to remove this debt record for "${name}"?`,
-      buttons: [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteTransaction(id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const handleDeleteDebt = useCallback(
+    (id: string, name: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showAlert({
+        type: 'danger',
+        title: 'Remove Record',
+        message: `Are you sure you want to remove this debt record for "${name}"?`,
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              deleteTransaction(id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            },
           },
-        },
-      ],
-    });
-  };
+        ],
+      });
+    },
+    [deleteTransaction]
+  );
 
-  const formatDueDateDisplay = (dueDateStr?: string) => {
-    if (!dueDateStr) return null;
-    const isOverdue = dueDateStr < todayStr;
-    const isDueSoon =
-      !isOverdue &&
-      new Date(dueDateStr).getTime() - new Date(todayStr).getTime() <= 3 * 86400000;
+  const formatDueDateDisplay = useCallback(
+    (dueDateStr?: string) => {
+      if (!dueDateStr) return null;
+      const isOverdue = dueDateStr < todayStr;
+      const isDueSoon =
+        !isOverdue &&
+        new Date(dueDateStr).getTime() - new Date(todayStr).getTime() <= 3 * 86400000;
 
-    return {
-      text: dueDateStr,
-      isOverdue,
-      isDueSoon,
-    };
-  };
+      return {
+        text: dueDateStr,
+        isOverdue,
+        isDueSoon,
+      };
+    },
+    [todayStr]
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

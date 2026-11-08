@@ -32,7 +32,9 @@ function shuffleDigits(): number[] {
 export const PinLockScreen: React.FC<PinLockScreenProps> = ({ onSuccess }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const { settings, setIsAppLocked, resetSecurityPin } = useStore();
+  const settings = useStore((s) => s.settings);
+  const setIsAppLocked = useStore((s) => s.setIsAppLocked);
+  const resetSecurityPin = useStore((s) => s.resetSecurityPin);
 
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

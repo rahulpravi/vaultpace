@@ -48,20 +48,18 @@ import { AddCategoryModal } from '../components/domain/AddCategoryModal';
 export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const {
-    settings,
-    updateSettings,
-    cleanSlateFinancialRecords,
-    restoreBackupData,
-    accounts,
-    categories,
-    budgets,
-    transactions,
-    categoryLimits,
-    getTotalNetWorthCents,
-    setIsAppLocked,
-    resetSecurityPin,
-  } = useStore();
+  const settings = useStore((s) => s.settings);
+  const updateSettings = useStore((s) => s.updateSettings);
+  const cleanSlateFinancialRecords = useStore((s) => s.cleanSlateFinancialRecords);
+  const restoreBackupData = useStore((s) => s.restoreBackupData);
+  const accounts = useStore((s) => s.accounts);
+  const categories = useStore((s) => s.categories);
+  const budgets = useStore((s) => s.budgets);
+  const transactions = useStore((s) => s.transactions);
+  const categoryLimits = useStore((s) => s.categoryLimits);
+  const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
+  const setIsAppLocked = useStore((s) => s.setIsAppLocked);
+  const resetSecurityPin = useStore((s) => s.resetSecurityPin);
 
   const [isSetPinModalOpen, setIsSetPinModalOpen] = useState(false);
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false);

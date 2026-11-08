@@ -47,7 +47,7 @@ interface AnimatedCardProps {
   onPress: () => void;
 }
 
-const AnimatedCard: React.FC<AnimatedCardProps> = ({
+const AnimatedCard: React.FC<AnimatedCardProps> = React.memo(({
   account,
   slotIndex,
   totalCards,
@@ -129,9 +129,9 @@ const AnimatedCard: React.FC<AnimatedCardProps> = ({
       </TouchableOpacity>
     </Animated.View>
   );
-};
+});
 
-export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = ({
+export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = React.memo(({
   accounts,
   selectedAccountId,
   onSelectAccount,
@@ -363,7 +363,7 @@ export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   rootContainer: {

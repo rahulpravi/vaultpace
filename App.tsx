@@ -12,7 +12,10 @@ import { useStore } from './src/store/useStore';
 
 function AppContent() {
   const { colors, isDark } = useAppTheme();
-  const { settings, isAppLocked, setIsAppLocked, hydrateSecurityPin } = useStore();
+  const settings = useStore((s) => s.settings);
+  const isAppLocked = useStore((s) => s.isAppLocked);
+  const setIsAppLocked = useStore((s) => s.setIsAppLocked);
+  const hydrateSecurityPin = useStore((s) => s.hydrateSecurityPin);
 
   useEffect(() => {
     hydrateSecurityPin();

@@ -3,6 +3,8 @@ import {
   View,
   Text,
   ScrollView,
+  FlatList,
+  Platform,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -35,15 +37,13 @@ import { exportTransactionsToPdf } from '../utils/exportPdf';
 export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const {
-    transactions,
-    categories,
-    accounts,
-    deleteTransaction,
-    settings,
-    budgets,
-    getTotalNetWorthCents,
-  } = useStore();
+  const transactions = useStore((s) => s.transactions);
+  const categories = useStore((s) => s.categories);
+  const accounts = useStore((s) => s.accounts);
+  const deleteTransaction = useStore((s) => s.deleteTransaction);
+  const settings = useStore((s) => s.settings);
+  const budgets = useStore((s) => s.budgets);
+  const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
 
   const userAccounts = useMemo(
     () =>
@@ -98,6 +98,13 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   const handleEditTransaction = useCallback((item: Transaction) => {
     setEditingTransaction(item);
   }, []);
+
+  const handleDeleteTransaction = useCallback(
+    (id: string) => {
+      deleteTransaction(id);
+    },
+    [deleteTransaction]
+  );
 
   // Available distinct months extracted from all transactions
   const availableMonths = useMemo(() => {
@@ -212,7 +219,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
       // 4. Category filter by name
       if (selectedCatName) {
-        const cat = categories.find((c) => c.id === tx.category_id);
+        const cat = categoryMap.get(tx.category_id || '');
         if (!cat || cat.name.toLowerCase() !== selectedCatName.toLowerCase()) {
           return false;
         }
@@ -221,9 +228,9 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       // 5. Search query (notes, contact name, category, wallet name, amount)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const cat = categories.find((c) => c.id === tx.category_id);
-        const acc = accounts.find((a) => a.id === tx.account_id);
-        const toAcc = tx.to_account_id ? accounts.find((a) => a.id === tx.to_account_id) : null;
+        const cat = categoryMap.get(tx.category_id || '');
+        const acc = accountMap.get(tx.account_id);
+        const toAcc = tx.to_account_id ? accountMap.get(tx.to_account_id) : null;
         const matchesNote = tx.notes?.toLowerCase().includes(q);
         const matchesContact = tx.contact_name?.toLowerCase().includes(q);
         const matchesCat = cat?.name.toLowerCase().includes(q);
@@ -238,8 +245,8 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     });
   }, [
     transactions,
-    categories,
-    accounts,
+    categoryMap,
+    accountMap,
     searchQuery,
     selectedCatName,
     selectedAccId,
@@ -260,14 +267,14 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       }
       if (tempAccId && tx.account_id !== tempAccId && tx.to_account_id !== tempAccId) return false;
       if (tempCatName) {
-        const cat = categories.find((c) => c.id === tx.category_id);
+        const cat = categoryMap.get(tx.category_id || '');
         if (!cat || cat.name.toLowerCase() !== tempCatName.toLowerCase()) return false;
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const cat = categories.find((c) => c.id === tx.category_id);
-        const acc = accounts.find((a) => a.id === tx.account_id);
-        const toAcc = tx.to_account_id ? accounts.find((a) => a.id === tx.to_account_id) : null;
+        const cat = categoryMap.get(tx.category_id || '');
+        const acc = accountMap.get(tx.account_id);
+        const toAcc = tx.to_account_id ? accountMap.get(tx.to_account_id) : null;
         const matchesNote = tx.notes?.toLowerCase().includes(q);
         const matchesContact = tx.contact_name?.toLowerCase().includes(q);
         const matchesCat = cat?.name.toLowerCase().includes(q);
@@ -287,8 +294,8 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     tempAccId,
     tempCatName,
     searchQuery,
-    categories,
-    accounts,
+    categoryMap,
+    accountMap,
   ]);
 
   // Group by date
@@ -302,7 +309,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
   }, [filtered]);
 
-  const formatDateHeader = (dateStr: string) => {
+  const formatDateHeader = useCallback((dateStr: string) => {
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
     if (dateStr === today) return 'Today';
@@ -313,7 +320,249 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       month: 'short',
       day: 'numeric',
     });
-  };
+  }, []);
+
+  const keyExtractor = useCallback((item: [string, Transaction[]]) => item[0], []);
+
+  const renderGroupItem = useCallback(
+    ({ item: [dateKey, txList] }: { item: [string, Transaction[]] }) => (
+      <View style={styles.groupContainer}>
+        <View style={styles.dateHeaderRow}>
+          <Calendar size={13} color={colors.textMuted} />
+          <Text style={[styles.dateHeaderText, { color: colors.textMuted }]}>
+            {formatDateHeader(dateKey)}
+          </Text>
+          <Text style={[styles.dateCountText, { color: colors.textSubtle }]}>
+            ({txList.length})
+          </Text>
+        </View>
+
+        {txList.map((tx) => (
+          <TransactionRow
+            key={tx.id}
+            transaction={tx}
+            category={categoryMap.get(tx.category_id || '')}
+            account={accountMap.get(tx.account_id)}
+            onDelete={handleDeleteTransaction}
+            onPress={handleEditTransaction}
+          />
+        ))}
+      </View>
+    ),
+    [
+      colors.textMuted,
+      colors.textSubtle,
+      formatDateHeader,
+      categoryMap,
+      accountMap,
+      handleDeleteTransaction,
+      handleEditTransaction,
+    ]
+  );
+
+  const renderEmptyState = useMemo(
+    () => (
+      <View
+        style={[
+          styles.emptyState,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>No Records Found</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+          Try adjusting your search filters or record a new transaction.
+        </Text>
+      </View>
+    ),
+    [colors.surface, colors.border, colors.text, colors.textMuted]
+  );
+
+  const renderListHeader = (
+    <View style={styles.listHeaderWrap}>
+      {/* Compact Search & Filter Bar */}
+      <View style={styles.searchAndFilterRow}>
+        <View
+          style={[
+            styles.searchWrap,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Search size={18} color={colors.textMuted} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search notes, contact, category, wallet, amount..."
+            placeholderTextColor={colors.textMuted + '90'}
+            style={[styles.searchInput, { color: colors.text }]}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <TouchableOpacity
+          onPress={openFilterModal}
+          activeOpacity={0.7}
+          style={[
+            styles.filterBtn,
+            {
+              backgroundColor: activeFilterCount > 0 ? colors.accentLight : colors.surface,
+              borderColor: activeFilterCount > 0 ? colors.accent : colors.border,
+            },
+          ]}
+        >
+          <SlidersHorizontal
+            size={18}
+            color={activeFilterCount > 0 ? colors.accent : colors.text}
+            strokeWidth={2.2}
+          />
+          {activeFilterCount > 0 && (
+            <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
+              <Text style={[styles.filterBadgeText, { color: colors.onAccent }]}>
+                {activeFilterCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Compact Active Filter Pills Row */}
+      {activeFilterCount > 0 && (
+        <View style={styles.activePillsContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.activePillsContent}
+          >
+            {/* Month Pill */}
+            {selectedMonth && (
+              <View
+                style={[
+                  styles.activePill,
+                  {
+                    backgroundColor: colors.accentLight,
+                    borderColor: colors.accent + '35',
+                  },
+                ]}
+              >
+                <Calendar size={12} color={colors.accent} />
+                <Text style={[styles.activePillText, { color: colors.accent }]}>
+                  {formatMonth(selectedMonth)}
+                </Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedMonth(null);
+                  }}
+                >
+                  <X size={12} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Type Pill */}
+            {selectedType && (
+              <View
+                style={[
+                  styles.activePill,
+                  {
+                    backgroundColor: colors.accentLight,
+                    borderColor: colors.accent + '35',
+                  },
+                ]}
+              >
+                <Layers size={12} color={colors.accent} />
+                <Text style={[styles.activePillText, { color: colors.accent }]}>
+                  {getTypeLabel(selectedType)}
+                </Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedType(null);
+                  }}
+                >
+                  <X size={12} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Wallet Pill */}
+            {selectedAccId && (
+              <View
+                style={[
+                  styles.activePill,
+                  {
+                    backgroundColor: colors.accentLight,
+                    borderColor: colors.accent + '35',
+                  },
+                ]}
+              >
+                <Wallet size={12} color={colors.accent} />
+                <Text style={[styles.activePillText, { color: colors.accent }]}>
+                  {userAccounts.find((a) => a.id === selectedAccId)?.name || 'Wallet'}
+                </Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedAccId(null);
+                  }}
+                >
+                  <X size={12} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Category Pill */}
+            {selectedCatName && (
+              <View
+                style={[
+                  styles.activePill,
+                  {
+                    backgroundColor: colors.accentLight,
+                    borderColor: colors.accent + '35',
+                  },
+                ]}
+              >
+                <Tag size={12} color={colors.accent} />
+                <Text style={[styles.activePillText, { color: colors.accent }]}>
+                  {selectedCatName}
+                </Text>
+                <TouchableOpacity
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedCatName(null);
+                  }}
+                >
+                  <X size={12} color={colors.accent} />
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Reset All Pill */}
+            <TouchableOpacity
+              onPress={clearAllFilters}
+              style={[
+                styles.resetPill,
+                { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
+              ]}
+            >
+              <RotateCcw size={11} color={colors.textMuted} />
+              <Text style={[styles.resetPillText, { color: colors.textMuted }]}>Reset</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -363,233 +612,20 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
         </View>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={groupedTransactions}
+        keyExtractor={keyExtractor}
+        renderItem={renderGroupItem}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderEmptyState}
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
-      >
-        {/* Compact Search & Filter Bar */}
-        <View style={styles.searchAndFilterRow}>
-          <View
-            style={[
-              styles.searchWrap,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <Search size={18} color={colors.textMuted} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search notes, contact, category, wallet, amount..."
-              placeholderTextColor={colors.textMuted + '90'}
-              style={[styles.searchInput, { color: colors.text }]}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <X size={16} color={colors.textMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <TouchableOpacity
-            onPress={openFilterModal}
-            activeOpacity={0.7}
-            style={[
-              styles.filterBtn,
-              {
-                backgroundColor: activeFilterCount > 0 ? colors.accentLight : colors.surface,
-                borderColor: activeFilterCount > 0 ? colors.accent : colors.border,
-              },
-            ]}
-          >
-            <SlidersHorizontal
-              size={18}
-              color={activeFilterCount > 0 ? colors.accent : colors.text}
-              strokeWidth={2.2}
-            />
-            {activeFilterCount > 0 && (
-              <View style={[styles.filterBadge, { backgroundColor: colors.accent }]}>
-                <Text style={[styles.filterBadgeText, { color: colors.onAccent }]}>
-                  {activeFilterCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Compact Active Filter Pills Row */}
-        {activeFilterCount > 0 && (
-          <View style={styles.activePillsContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.activePillsContent}
-            >
-              {/* Month Pill */}
-              {selectedMonth && (
-                <View
-                  style={[
-                    styles.activePill,
-                    {
-                      backgroundColor: colors.accentLight,
-                      borderColor: colors.accent + '35',
-                    },
-                  ]}
-                >
-                  <Calendar size={12} color={colors.accent} />
-                  <Text style={[styles.activePillText, { color: colors.accent }]}>
-                    {formatMonth(selectedMonth)}
-                  </Text>
-                  <TouchableOpacity
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSelectedMonth(null);
-                    }}
-                  >
-                    <X size={12} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Type Pill */}
-              {selectedType && (
-                <View
-                  style={[
-                    styles.activePill,
-                    {
-                      backgroundColor: colors.accentLight,
-                      borderColor: colors.accent + '35',
-                    },
-                  ]}
-                >
-                  <Layers size={12} color={colors.accent} />
-                  <Text style={[styles.activePillText, { color: colors.accent }]}>
-                    {getTypeLabel(selectedType)}
-                  </Text>
-                  <TouchableOpacity
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSelectedType(null);
-                    }}
-                  >
-                    <X size={12} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Wallet Pill */}
-              {selectedAccId && (
-                <View
-                  style={[
-                    styles.activePill,
-                    {
-                      backgroundColor: colors.accentLight,
-                      borderColor: colors.accent + '35',
-                    },
-                  ]}
-                >
-                  <Wallet size={12} color={colors.accent} />
-                  <Text style={[styles.activePillText, { color: colors.accent }]}>
-                    {userAccounts.find((a) => a.id === selectedAccId)?.name || 'Wallet'}
-                  </Text>
-                  <TouchableOpacity
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSelectedAccId(null);
-                    }}
-                  >
-                    <X size={12} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Category Pill */}
-              {selectedCatName && (
-                <View
-                  style={[
-                    styles.activePill,
-                    {
-                      backgroundColor: colors.accentLight,
-                      borderColor: colors.accent + '35',
-                    },
-                  ]}
-                >
-                  <Tag size={12} color={colors.accent} />
-                  <Text style={[styles.activePillText, { color: colors.accent }]}>
-                    {selectedCatName}
-                  </Text>
-                  <TouchableOpacity
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSelectedCatName(null);
-                    }}
-                  >
-                    <X size={12} color={colors.accent} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Reset All Pill */}
-              <TouchableOpacity
-                onPress={clearAllFilters}
-                style={[
-                  styles.resetPill,
-                  { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
-                ]}
-              >
-                <RotateCcw size={11} color={colors.textMuted} />
-                <Text style={[styles.resetPillText, { color: colors.textMuted }]}>Reset</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Grouped Ledger List */}
-        {groupedTransactions.length === 0 ? (
-          <View
-            style={[
-              styles.emptyState,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Records Found</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-              Try adjusting your search filters or record a new transaction.
-            </Text>
-          </View>
-        ) : (
-          groupedTransactions.map(([dateKey, txList]) => (
-            <View key={dateKey} style={styles.groupContainer}>
-              <View style={styles.dateHeaderRow}>
-                <Calendar size={13} color={colors.textMuted} />
-                <Text style={[styles.dateHeaderText, { color: colors.textMuted }]}>
-                  {formatDateHeader(dateKey)}
-                </Text>
-                <Text style={[styles.dateCountText, { color: colors.textSubtle }]}>
-                  ({txList.length})
-                </Text>
-              </View>
-
-              {txList.map((tx) => (
-                <TransactionRow
-                  key={tx.id}
-                  transaction={tx}
-                  category={categoryMap.get(tx.category_id || '')}
-                  account={accountMap.get(tx.account_id)}
-                  onDelete={deleteTransaction}
-                  onPress={handleEditTransaction}
-                />
-              ))}
-            </View>
-          ))
-        )}
-      </ScrollView>
+      />
 
       {/* Collapsible Filter Bottom Sheet / Modal */}
       <Modal
@@ -986,6 +1022,9 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 16,
+  },
+  listHeaderWrap: {
+    marginBottom: 4,
   },
   searchAndFilterRow: {
     flexDirection: 'row',

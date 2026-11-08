@@ -96,12 +96,12 @@ Ran `python .agents/skills/replica-design/contrast.py replica/design/tokens.json
 - **Form & Geometry**:
   - The outer contour forms a sharp stylized 'V' in electric cyan / aqua blue.
   - Intersecting the center is a gold-trimmed vault doorway and an upward financial growth pace arrow pointing up and right.
-  - Deep slate navy background (`#1A222F`) for maximum contrast and sleek modern financial aesthetic.
+  - Pitch black background (`#000000`) for maximum contrast and sleek modern financial aesthetic.
 - **Scalability**:
   - Tested at 16×16px (favicon): Dynamic 'V' and arrow remain distinct and crisp.
-  - Rendered at 1024×1024px: High-density app icon with solid `#1A222F` background (iOS App Store & Google Play compliant).
+  - Rendered at 1024×1024px: High-density app icon with solid `#000000` background (iOS App Store & Google Play compliant).
 - **Deliverables Required**:
-  1. `icon.png`, `adaptive-icon.png`, `logo.png`, `splash.png`, `favicon.png` (1024×1024 PNG, solid `#1A222F` background).
+  1. `icon.png`, `adaptive-icon.png`, `logo.png`, `splash.png`, `favicon.png` (1024×1024 PNG, solid `#000000` background).
 
 
 ---

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,16 +32,14 @@ import { AddCategoryModal } from '../components/domain/AddCategoryModal';
 export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const {
-    budgets,
-    categories,
-    transactions,
-    accounts,
-    settings,
-    categoryLimits,
-    setCategoryLimit,
-    getTotalNetWorthCents,
-  } = useStore();
+  const budgets = useStore((s) => s.budgets);
+  const categories = useStore((s) => s.categories);
+  const transactions = useStore((s) => s.transactions);
+  const accounts = useStore((s) => s.accounts);
+  const settings = useStore((s) => s.settings);
+  const categoryLimits = useStore((s) => s.categoryLimits);
+  const setCategoryLimit = useStore((s) => s.setCategoryLimit);
+  const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newLimitStr, setNewLimitStr] = useState('');
@@ -86,15 +84,15 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
       ? '£'
       : settings.default_currency;
 
-  const handleOpenEdit = (cat: Category, currentLimitCents: number) => {
+  const handleOpenEdit = useCallback((cat: Category, currentLimitCents: number) => {
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setEditingCategory(cat);
     const standardAmount = (currentLimitCents / 100).toFixed(0);
     setNewLimitStr(standardAmount === '0' ? '' : standardAmount);
-  };
+  }, []);
 
-  const handleSaveLimit = () => {
+  const handleSaveLimit = useCallback(() => {
     if (!editingCategory) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -102,20 +100,22 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
     setCategoryLimit(editingCategory.id, cents);
     setEditingCategory(null);
     setNewLimitStr('');
-  };
+  }, [editingCategory, newLimitStr, setCategoryLimit]);
 
-  const addQuickIncrement = (additionalRupees: number) => {
+  const addQuickIncrement = useCallback((additionalRupees: number) => {
     Haptics.selectionAsync();
-    const currentVal = parseFloat(newLimitStr) || 0;
-    setNewLimitStr((currentVal + additionalRupees).toString());
-  };
+    setNewLimitStr((prev) => {
+      const currentVal = parseFloat(prev) || 0;
+      return (currentVal + additionalRupees).toString();
+    });
+  }, []);
 
-  const handleExportReportPress = () => {
+  const handleExportReportPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsPinModalOpen(true);
-  };
+  }, []);
 
-  const handlePinExportSuccess = async () => {
+  const handlePinExportSuccess = useCallback(async () => {
     try {
       setIsExportingPdf(true);
       await exportTransactionsToPdf({
@@ -135,7 +135,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
     } finally {
       setIsExportingPdf(false);
     }
-  };
+  }, [accounts, categories, budgets, transactions, settings, getTotalNetWorthCents]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>

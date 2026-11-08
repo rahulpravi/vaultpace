@@ -58,7 +58,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   onClose,
 }) => {
   const { colors } = useAppTheme();
-  const { accounts, categories, addTransaction, updateTransaction, settings } = useStore();
+  const accounts = useStore((s) => s.accounts);
+  const categories = useStore((s) => s.categories);
+  const addTransaction = useStore((s) => s.addTransaction);
+  const updateTransaction = useStore((s) => s.updateTransaction);
+  const settings = useStore((s) => s.settings);
 
   const isEditMode = Boolean(initialTransaction);
 

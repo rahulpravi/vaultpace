@@ -33,16 +33,14 @@ import {
 export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
-  const {
-    accounts,
-    categories,
-    budgets,
-    transactions,
-    settings,
-    getTotalNetWorthCents,
-    deleteTransaction,
-    toggleHideBalance,
-  } = useStore();
+  const accounts = useStore((s) => s.accounts);
+  const categories = useStore((s) => s.categories);
+  const budgets = useStore((s) => s.budgets);
+  const transactions = useStore((s) => s.transactions);
+  const settings = useStore((s) => s.settings);
+  const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
+  const deleteTransaction = useStore((s) => s.deleteTransaction);
+  const toggleHideBalance = useStore((s) => s.toggleHideBalance);
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -142,6 +140,22 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
     setEditingTransaction(item);
   }, []);
 
+  const handleDeleteTransaction = useCallback(
+    (id: string) => {
+      deleteTransaction(id);
+    },
+    [deleteTransaction]
+  );
+
+  const handleSelectAccount = useCallback((id: string | null) => {
+    setSelectedAccountId(id);
+  }, []);
+
+  const handleToggleHideBalance = useCallback(() => {
+    Haptics.selectionAsync();
+    toggleHideBalance();
+  }, [toggleHideBalance]);
+
   const activeBudget = budgets[0];
 
   return (
@@ -194,10 +208,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             </Text>
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                toggleHideBalance();
-              }}
+              onPress={handleToggleHideBalance}
               style={[
                 styles.eyeBtn,
                 { backgroundColor: colors.surfaceSubtle, borderColor: colors.border },
@@ -268,7 +279,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         <AppleWalletCardStack
           accounts={userAccounts}
           selectedAccountId={selectedAccountId}
-          onSelectAccount={(accId) => setSelectedAccountId(accId)}
+          onSelectAccount={handleSelectAccount}
           onManageAccounts={() => navigation.navigate('AccountsTab')}
           onAddAccount={() => navigation.navigate('AccountsTab')}
         />
@@ -382,7 +393,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               transaction={tx}
               category={categoryMap.get(tx.category_id || '')}
               account={accountMap.get(tx.account_id)}
-              onDelete={deleteTransaction}
+              onDelete={handleDeleteTransaction}
               onPress={handleEditTransaction}
             />
           ))
