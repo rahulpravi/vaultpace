@@ -21,7 +21,7 @@ import { exportTransactionsToPdf } from '../utils/exportPdf';
 import { BottomTabProps } from '../navigation/types';
 import { Category, Budget } from '../types';
 import { triggerHaptic } from '../utils/haptics';
-import { Target, Pencil, X, Check, BarChart3, FileDown, Plus } from 'lucide-react-native';
+import { Target, Pencil, X, Check, BarChart3, FileDown, Plus, Trash2 } from 'lucide-react-native';
 import {
   CustomAmountKeypad,
   AmountDisplay,
@@ -39,14 +39,30 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const settings = useStore((s) => s.settings);
   const categoryLimits = useStore((s) => s.categoryLimits);
   const setCategoryLimit = useStore((s) => s.setCategoryLimit);
+  const deleteCategory = useStore((s) => s.deleteCategory);
   const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
 
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newLimitStr, setNewLimitStr] = useState('');
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    actionType: 'destructive' | 'primary';
+    onSuccess: () => void;
+  }>({
+    visible: false,
+    title: '',
+    subtitle: '',
+    actionType: 'primary',
+    onSuccess: () => {},
+  });
+
+  const hasLockConfigured =
+    Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
 
   // Precompute spending and count by category in a single O(N) pass for instant 60fps rendering
   const categoryStatsMap = useMemo(() => {
@@ -75,13 +91,122 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
 
   const currencySymbol = getCurrencySymbol(settings.default_currency);
 
-  const handleOpenEdit = useCallback((cat: Category, currentLimitCents: number) => {
-    Keyboard.dismiss();
-    triggerHaptic('light');
-    setEditingCategory(cat);
-    const standardAmount = (currentLimitCents / 100).toFixed(0);
-    setNewLimitStr(standardAmount === '0' ? '' : standardAmount);
-  }, []);
+  const handleOpenEdit = useCallback(
+    (cat: Category, currentLimitCents: number) => {
+      triggerHaptic('light');
+      showAlert({
+        type: 'info',
+        title: 'Edit Category Cap',
+        message: `Do you want to adjust the monthly spending cap for "${cat.name}"?`,
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Edit',
+            onPress: () => {
+              if (hasLockConfigured) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Edit',
+                  subtitle: `Enter your PIN to edit the cap for "${cat.name}".`,
+                  actionType: 'primary',
+                  onSuccess: () => {
+                    Keyboard.dismiss();
+                    setEditingCategory(cat);
+                    const standardAmount = (currentLimitCents / 100).toFixed(0);
+                    setNewLimitStr(standardAmount === '0' ? '' : standardAmount);
+                  },
+                });
+              } else {
+                Keyboard.dismiss();
+                setEditingCategory(cat);
+                const standardAmount = (currentLimitCents / 100).toFixed(0);
+                setNewLimitStr(standardAmount === '0' ? '' : standardAmount);
+              }
+            },
+          },
+        ],
+      });
+    },
+    [hasLockConfigured]
+  );
+
+  const handleDeleteCategory = useCallback(
+    (cat: Category) => {
+      if (cat.name.toLowerCase() === 'other') {
+        showAlert({
+          type: 'warning',
+          title: 'Cannot Delete',
+          message: 'The fallback "Other" category is required to protect uncategorized records.',
+        });
+        return;
+      }
+
+      triggerHaptic('medium');
+      showAlert({
+        type: 'danger',
+        title: 'Delete Category',
+        message: `Are you sure you want to delete "${cat.name}"? Existing transactions will be automatically reassigned to "Other" so no records are lost.`,
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              if (hasLockConfigured) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Deletion',
+                  subtitle: `Enter your PIN to delete "${cat.name}".`,
+                  actionType: 'destructive',
+                  onSuccess: () => {
+                    deleteCategory(cat.id);
+                    triggerHaptic('success');
+                  },
+                });
+              } else {
+                deleteCategory(cat.id);
+                triggerHaptic('success');
+              }
+            },
+          },
+        ],
+      });
+    },
+    [deleteCategory, hasLockConfigured]
+  );
+
+  const handleOpenEditBudget = useCallback(
+    (b: Budget) => {
+      triggerHaptic('light');
+      showAlert({
+        type: 'info',
+        title: 'Edit Monthly Cap',
+        message: 'Do you want to adjust your overall monthly spending cap?',
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Edit',
+            onPress: () => {
+              if (hasLockConfigured) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Edit',
+                  subtitle: 'Enter your PIN to adjust your monthly spending cap.',
+                  actionType: 'primary',
+                  onSuccess: () => {
+                    setEditingBudget(b);
+                  },
+                });
+              } else {
+                setEditingBudget(b);
+              }
+            },
+          },
+        ],
+      });
+    },
+    [hasLockConfigured]
+  );
 
   const handleSaveLimit = useCallback(() => {
     if (!editingCategory) return;
@@ -125,14 +250,18 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
 
   const handleExportReportPress = useCallback(() => {
     triggerHaptic('light');
-    const hasLockConfigured =
-      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
     if (!hasLockConfigured) {
       handlePinExportSuccess();
       return;
     }
-    setIsPinModalOpen(true);
-  }, [settings, handlePinExportSuccess]);
+    setPinModalConfig({
+      visible: true,
+      title: 'Export Spending Report',
+      subtitle: 'Enter your 4-digit PIN to authorize and generate your spending statement PDF.',
+      actionType: 'primary',
+      onSuccess: handlePinExportSuccess,
+    });
+  }, [hasLockConfigured, handlePinExportSuccess]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -187,10 +316,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
             key={b.id}
             budget={b}
             transactions={transactions}
-            onPressEdit={() => {
-              triggerHaptic('light');
-              setEditingBudget(b);
-            }}
+            onPressEdit={() => handleOpenEditBudget(b)}
           />
         ))}
 
@@ -270,6 +396,21 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
                         Edit
                       </Text>
                     </TouchableOpacity>
+
+                    {/* Delete Category Button */}
+                    {cat.name.toLowerCase() !== 'other' && (
+                      <TouchableOpacity
+                        activeOpacity={0.7}
+                        onPress={() => handleDeleteCategory(cat)}
+                        style={[
+                          styles.deleteCatBtn,
+                          { backgroundColor: colors.dangerLight, borderColor: colors.danger + '35' },
+                        ]}
+                        accessibilityLabel={`Delete ${cat.name} category`}
+                      >
+                        <Trash2 size={12} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
 
@@ -419,14 +560,14 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Reusable PIN Verification Modal for PDF Export */}
+      {/* Reusable PIN Verification Modal */}
       <PinVerificationModal
-        visible={isPinModalOpen}
-        title="Export Spending Report"
-        subtitle="Enter your 4-digit PIN to authorize and generate your spending statement PDF."
-        actionType="primary"
-        onSuccess={handlePinExportSuccess}
-        onClose={() => setIsPinModalOpen(false)}
+        visible={pinModalConfig.visible}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        actionType={pinModalConfig.actionType}
+        onSuccess={pinModalConfig.onSuccess}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
       />
 
       {/* Edit Overall Monthly Spending Cap Modal */}
@@ -580,6 +721,14 @@ const styles = StyleSheet.create({
   editLimitBtnText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  deleteCatBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   barBg: {
     height: 8,

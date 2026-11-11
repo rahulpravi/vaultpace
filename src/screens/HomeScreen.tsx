@@ -15,7 +15,6 @@ import { AppleWalletCardStack } from '../components/domain/AppleWalletCardStack'
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
-import { EditMonthlyCapModal } from '../components/domain/EditMonthlyCapModal';
 import { BottomTabProps } from '../navigation/types';
 import { Transaction } from '../types';
 import { triggerHaptic } from '../utils/haptics';
@@ -44,7 +43,6 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
 
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditMonthlyCapOpen, setIsEditMonthlyCapOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const totalNetWorth = useMemo(() => getTotalNetWorthCents(), [accounts, getTotalNetWorthCents]);
@@ -182,14 +180,6 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
     setEditingTransaction(null);
   }, []);
 
-  const handleOpenMonthlyCap = useCallback(() => {
-    setIsEditMonthlyCapOpen(true);
-  }, []);
-
-  const handleCloseMonthlyCap = useCallback(() => {
-    setIsEditMonthlyCapOpen(false);
-  }, []);
-
   const activeBudget = budgets[0];
 
   return (
@@ -316,6 +306,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           onSelectAccount={handleSelectAccount}
           onManageAccounts={handleNavigateAccounts}
           onAddAccount={handleNavigateAccounts}
+          isPrivacyMode={Boolean(settings.is_balance_hidden)}
         />
 
         {/* =========================================================================
@@ -351,12 +342,16 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               <View style={{ alignItems: 'flex-end', marginRight: 6 }}>
                 {activeLent > 0 && (
                   <Text style={[styles.debtsBadgeLent, { color: '#059669' }]}>
-                    +{formatCurrency(activeLent, settings.default_currency)} (Lent)
+                    {settings.is_balance_hidden
+                      ? `${getCurrencySymbol(settings.default_currency)} ••••• (Lent)`
+                      : `+${formatCurrency(activeLent, settings.default_currency)} (Lent)`}
                   </Text>
                 )}
                 {activeBorrowed > 0 && (
                   <Text style={[styles.debtsBadgeBorrowed, { color: '#D97706' }]}>
-                    -{formatCurrency(activeBorrowed, settings.default_currency)} (Owe)
+                    {settings.is_balance_hidden
+                      ? `${getCurrencySymbol(settings.default_currency)} ••••• (Owe)`
+                      : `-${formatCurrency(activeBorrowed, settings.default_currency)} (Owe)`}
                   </Text>
                 )}
               </View>
@@ -370,7 +365,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         </TouchableOpacity>
 
         {/* =========================================================================
-            Spending Report (Budget Pace)
+            Spending Report (Budget Pace) — Clean Read-Only on Home Dashboard
             ========================================================================= */}
         {activeBudget && (
           <View style={styles.budgetSection}>
@@ -388,13 +383,13 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <BudgetProgressCard
               budget={activeBudget}
               transactions={filteredTransactions}
-              onPressEdit={handleOpenMonthlyCap}
+              isPrivacyMode={Boolean(settings.is_balance_hidden)}
             />
           </View>
         )}
 
         {/* =========================================================================
-            Recent Movements
+            Recent Movements — Clean Read-Only Overview
             ========================================================================= */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Movements</Text>
@@ -427,8 +422,8 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               transaction={tx}
               category={categoryMap.get(tx.category_id || '')}
               account={accountMap.get(tx.account_id)}
-              onDelete={handleDeleteTransaction}
-              onPress={handleEditTransaction}
+              showActions={false}
+              isPrivacyMode={Boolean(settings.is_balance_hidden)}
             />
           ))
         )}
@@ -454,13 +449,6 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
         visible={isAddModalOpen || Boolean(editingTransaction)}
         initialTransaction={editingTransaction}
         onClose={handleCloseAddModal}
-      />
-
-      {/* Edit Overall Monthly Spending Cap Modal */}
-      <EditMonthlyCapModal
-        visible={isEditMonthlyCapOpen}
-        budget={activeBudget || null}
-        onClose={handleCloseMonthlyCap}
       />
     </View>
   );

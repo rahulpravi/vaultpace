@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppTheme } from '../../theme/useTheme';
 import { Budget, Transaction } from '../../types';
-import { formatCurrency } from '../../store/useStore';
+import { formatCurrency, getCurrencySymbol } from '../../store/useStore';
 import { AlertTriangle, CheckCircle, Pencil } from 'lucide-react-native';
 import { triggerHaptic } from '../../utils/haptics';
 
@@ -10,12 +10,14 @@ interface BudgetProgressCardProps {
   budget: Budget;
   transactions: Transaction[];
   onPressEdit?: () => void;
+  isPrivacyMode?: boolean;
 }
 
 export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = React.memo(({
   budget,
   transactions,
   onPressEdit,
+  isPrivacyMode = false,
 }) => {
   const { colors } = useAppTheme();
 
@@ -123,13 +125,21 @@ export const BudgetProgressCard: React.FC<BudgetProgressCardProps> = React.memo(
 
       <View style={styles.footerRow}>
         <Text style={[styles.spentText, { color: colors.text }]}>
-          {formatCurrency(spentCents)}{' '}
-          <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '500' }}>
-            / {formatCurrency(budget.amount_limit)}
-          </Text>
+          {isPrivacyMode ? (
+            `${getCurrencySymbol()} •••••• / ••••••`
+          ) : (
+            <>
+              {formatCurrency(spentCents)}{' '}
+              <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '500' }}>
+                / {formatCurrency(budget.amount_limit)}
+              </Text>
+            </>
+          )}
         </Text>
 
-        <Text style={[styles.percentText, { color: barColor }]}>{percentage}%</Text>
+        <Text style={[styles.percentText, { color: barColor }]}>
+          {isPrivacyMode ? '••%' : `${percentage}%`}
+        </Text>
       </View>
     </TouchableOpacity>
   );

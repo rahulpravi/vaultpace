@@ -15,6 +15,7 @@ import { useStore, formatCurrency } from '../store/useStore';
 import { Transaction, RootStackParamList } from '../types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
+import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { triggerHaptic } from '../utils/haptics';
 import {
   ArrowLeft,
@@ -53,6 +54,22 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
   // Settlement dialog state
   const [settlementTargetDebt, setSettlementTargetDebt] = useState<Transaction | null>(null);
   const [selectedSettlementAccountId, setSelectedSettlementAccountId] = useState<string>('');
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    actionType: 'destructive' | 'primary';
+    onSuccess: () => void;
+  }>({
+    visible: false,
+    title: '',
+    subtitle: '',
+    actionType: 'primary',
+    onSuccess: () => {},
+  });
+
+  const hasLockConfigured =
+    Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -154,14 +171,27 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
             text: 'Delete',
             style: 'destructive',
             onPress: () => {
-              deleteTransaction(id);
-              triggerHaptic('success');
+              if (hasLockConfigured) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Deletion',
+                  subtitle: `Enter your PIN to remove this record for "${name}".`,
+                  actionType: 'destructive',
+                  onSuccess: () => {
+                    deleteTransaction(id);
+                    triggerHaptic('success');
+                  },
+                });
+              } else {
+                deleteTransaction(id);
+                triggerHaptic('success');
+              }
             },
           },
         ],
       });
     },
-    [deleteTransaction]
+    [deleteTransaction, hasLockConfigured]
   );
 
   const formatDueDateDisplay = useCallback(
@@ -721,6 +751,16 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
         visible={isAddModalOpen}
         initialType={addModalType}
         onClose={() => setIsAddModalOpen(false)}
+      />
+
+      {/* PIN Verification Modal */}
+      <PinVerificationModal
+        visible={pinModalConfig.visible}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        actionType={pinModalConfig.actionType}
+        onSuccess={pinModalConfig.onSuccess}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );

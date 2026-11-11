@@ -10,7 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { Account } from '../../types';
-import { formatCurrency } from '../../store/useStore';
+import { formatCurrency, getCurrencySymbol } from '../../store/useStore';
 import {
   Wallet,
   Landmark,
@@ -30,6 +30,7 @@ interface WalletCreditCardProps {
   isActive?: boolean;
   isFront?: boolean;
   isExpanded?: boolean;
+  isPrivacyMode?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -137,6 +138,7 @@ export const WalletCreditCard: React.FC<WalletCreditCardProps> = React.memo(({
   isActive = false,
   isFront = false,
   isExpanded = false,
+  isPrivacyMode = false,
   style,
 }) => {
   const getAccountIcon = (type: string) => {
@@ -284,7 +286,9 @@ export const WalletCreditCard: React.FC<WalletCreditCardProps> = React.memo(({
                   ]}
                   numberOfLines={1}
                 >
-                  {formatCurrency(account.current_balance, account.currency)}
+                  {isPrivacyMode
+                    ? `${getCurrencySymbol(account.currency)} ••••••`
+                    : formatCurrency(account.current_balance, account.currency)}
                 </Text>
                 {isNegative && (
                   <View style={styles.negativeBadge}>
@@ -338,7 +342,9 @@ export const WalletCreditCard: React.FC<WalletCreditCardProps> = React.memo(({
                   ]}
                   numberOfLines={1}
                 >
-                  {formatCurrency(account.current_balance, account.currency)}
+                  {isPrivacyMode
+                    ? `${getCurrencySymbol(account.currency)} ••••••`
+                    : formatCurrency(account.current_balance, account.currency)}
                 </Text>
               </View>
             </View>

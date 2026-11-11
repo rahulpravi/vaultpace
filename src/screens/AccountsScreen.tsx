@@ -18,6 +18,7 @@ import { useStore, formatCurrency, parseAmountToCents, getCurrencySymbol } from 
 import { AccountType } from '../types';
 import { BottomTabProps } from '../navigation/types';
 import { triggerHaptic } from '../utils/haptics';
+import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import {
   Wallet,
   Landmark,
@@ -75,6 +76,22 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
   const [initialBalanceStr, setInitialBalanceStr] = useState('');
   const [color, setColor] = useState('#047857');
   const [error, setError] = useState<string | null>(null);
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    actionType: 'destructive' | 'primary';
+    onSuccess: () => void;
+  }>({
+    visible: false,
+    title: '',
+    subtitle: '',
+    actionType: 'primary',
+    onSuccess: () => {},
+  });
+
+  const hasLockConfigured =
+    Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
 
   const getAccountIcon = (type: string) => {
     switch (type) {
@@ -155,14 +172,27 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
             text: 'Delete Wallet',
             style: 'destructive',
             onPress: () => {
-              deleteAccount(id);
-              triggerHaptic('success');
+              if (hasLockConfigured) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Deletion',
+                  subtitle: `Enter your PIN to remove "${accName}".`,
+                  actionType: 'destructive',
+                  onSuccess: () => {
+                    deleteAccount(id);
+                    triggerHaptic('success');
+                  },
+                });
+              } else {
+                deleteAccount(id);
+                triggerHaptic('success');
+              }
             },
           },
         ],
       });
     },
-    [userAccounts.length, deleteAccount]
+    [userAccounts.length, deleteAccount, hasLockConfigured]
   );
 
   const currentCurrencyInfo =
@@ -412,6 +442,16 @@ export const AccountsScreen: React.FC<BottomTabProps<'AccountsTab'>> = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* PIN Verification Modal */}
+      <PinVerificationModal
+        visible={pinModalConfig.visible}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        actionType={pinModalConfig.actionType}
+        onSuccess={pinModalConfig.onSuccess}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 };

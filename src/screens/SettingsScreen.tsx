@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { ACCENT_PALETTES } from '../theme/colors';
 import { useStore } from '../store/useStore';
-import { ThemeMode, AccentColor } from '../types';
+import { ThemeMode, AccentColor, AutoLockInterval } from '../types';
 import { BottomTabProps } from '../navigation/types';
 import { triggerHaptic } from '../utils/haptics';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -42,8 +42,16 @@ import {
   CloudDownload,
   Tag,
   Plus,
+  Clock,
 } from 'lucide-react-native';
 import { AddCategoryModal } from '../components/domain/AddCategoryModal';
+
+const AUTO_LOCK_OPTIONS: { key: AutoLockInterval; label: string }[] = [
+  { key: 'immediate', label: 'Immediate' },
+  { key: '1m', label: '1 Min' },
+  { key: '5m', label: '5 Min' },
+  { key: 'off', label: 'Off' },
+];
 
 export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -813,6 +821,60 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
               </View>
               <ChevronRight size={16} color={colors.textMuted} />
             </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            {/* Auto-Lock Vault */}
+            <View>
+              <View style={styles.cardRow}>
+                <View style={styles.iconWithLabel}>
+                  <Clock size={18} color={colors.accent} />
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={[styles.rowTitle, { color: colors.text }]}>Auto-Lock Vault</Text>
+                    <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>
+                      Lock app when minimized or sent to background
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.themePills,
+                  { backgroundColor: colors.surfaceSubtle, marginTop: 12 },
+                ]}
+              >
+                {AUTO_LOCK_OPTIONS.map((opt) => {
+                  const isSelected = (settings.auto_lock_interval || 'immediate') === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      onPress={() => {
+                        triggerHaptic('selection');
+                        updateSettings({ auto_lock_interval: opt.key });
+                      }}
+                      style={[
+                        styles.themePillBtn,
+                        { flex: 1, justifyContent: 'center' },
+                        isSelected && [
+                          styles.themePillActive,
+                          { backgroundColor: colors.surface },
+                        ],
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.themePillText,
+                          { color: isSelected ? colors.text : colors.textMuted },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 

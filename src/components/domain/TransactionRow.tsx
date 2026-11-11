@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
 import { Transaction, Category, Account } from '../../types';
-import { formatCurrency } from '../../store/useStore';
+import { formatCurrency, getCurrencySymbol } from '../../store/useStore';
 import { triggerHaptic } from '../../utils/haptics';
 import { getCategoryIconComponent } from '../../utils/categoryIcons';
 import {
@@ -21,6 +21,8 @@ interface TransactionRowProps {
   account?: Account;
   onDelete?: (id: string) => void;
   onPress?: (transaction: Transaction) => void;
+  showActions?: boolean;
+  isPrivacyMode?: boolean;
 }
 
 export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
@@ -29,6 +31,8 @@ export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
   account,
   onDelete,
   onPress,
+  showActions = true,
+  isPrivacyMode = false,
 }) => {
   const { colors } = useAppTheme();
 
@@ -54,19 +58,7 @@ export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
 
   const handleDelete = () => {
     triggerHaptic('medium');
-    showAlert({
-      type: 'danger',
-      title: 'Delete Movement',
-      message: 'Are you sure you want to remove this record?',
-      buttons: [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete?.(transaction.id),
-        },
-      ],
-    });
+    onDelete?.(transaction.id);
   };
 
   const titleText = isBorrow
@@ -174,35 +166,38 @@ export const TransactionRow: React.FC<TransactionRowProps> = React.memo(({
           ]}
           numberOfLines={1}
         >
-          {amountPrefix}
-          {formatCurrency(transaction.amount, account?.currency)}
+          {isPrivacyMode
+            ? `${getCurrencySymbol(account?.currency)} ••••••`
+            : `${amountPrefix}${formatCurrency(transaction.amount, account?.currency)}`}
         </Text>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {onPress && (
-            <TouchableOpacity
-              onPress={handleRowPress}
-              style={styles.deleteButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel="Edit movement"
-              accessibilityRole="button"
-            >
-              <Pencil size={13} color={colors.accent} />
-            </TouchableOpacity>
-          )}
+        {showActions && (onPress || onDelete) && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {onPress && (
+              <TouchableOpacity
+                onPress={handleRowPress}
+                style={styles.deleteButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Edit movement"
+                accessibilityRole="button"
+              >
+                <Pencil size={13} color={colors.accent} />
+              </TouchableOpacity>
+            )}
 
-          {onDelete && (
-            <TouchableOpacity
-              onPress={handleDelete}
-              style={styles.deleteButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel="Delete movement"
-              accessibilityRole="button"
-            >
-              <Trash2 size={14} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+            {onDelete && (
+              <TouchableOpacity
+                onPress={handleDelete}
+                style={styles.deleteButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Delete movement"
+                accessibilityRole="button"
+              >
+                <Trash2 size={14} color={colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );

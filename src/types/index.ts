@@ -77,6 +77,8 @@ export type AccentColor =
   | 'amber'
   | 'yellow';
 
+export type AutoLockInterval = 'immediate' | '1m' | '5m' | 'off';
+
 export interface UserSettings {
   theme_mode: ThemeMode;
   accent_color: AccentColor;
@@ -90,6 +92,7 @@ export interface UserSettings {
   haptics_enabled: boolean;
   is_balance_hidden?: boolean;
   has_completed_onboarding?: boolean;
+  auto_lock_interval?: AutoLockInterval;
 }
 
 // React Navigation Types

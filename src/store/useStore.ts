@@ -118,6 +118,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notifications_enabled: true,
   haptics_enabled: true,
   is_balance_hidden: false,
+  auto_lock_interval: 'immediate',
 };
 
 function calculateBalances(accounts: Account[], transactions: Transaction[]): Account[] {
@@ -476,11 +477,36 @@ export const useStore = create<TrackerStore>()(
       },
 
       deleteCategory: (id) => {
+        const catToDelete = get().categories.find((c) => c.id === id);
+        // Prevent deleting the fallback 'Other' category
+        if (!catToDelete || catToDelete.name.toLowerCase() === 'other') {
+          return;
+        }
+
+        // Find the corresponding fallback 'Other' category of the same type
+        const fallbackOther = get().categories.find(
+          (c) =>
+            c.id !== id &&
+            c.category_type === catToDelete.category_type &&
+            c.name.toLowerCase() === 'other'
+        );
+        const fallbackOtherId =
+          fallbackOther?.id ||
+          (catToDelete.category_type === 'income' ? 'cat-income-other' : 'cat-expense-other');
+
+        // Automatically reassign all records to 'Other' so zero transactions are lost
+        const updatedTransactions = get().transactions.map((t) =>
+          t.category_id === id ? { ...t, category_id: fallbackOtherId } : t
+        );
+
+        // Remove category allowance if set
+        const nextCategoryLimits = { ...get().categoryLimits };
+        delete nextCategoryLimits[id];
+
         set({
           categories: get().categories.filter((c) => c.id !== id),
-          transactions: get().transactions.map((t) =>
-            t.category_id === id ? { ...t, category_id: undefined } : t
-          ),
+          categoryLimits: nextCategoryLimits,
+          transactions: updatedTransactions,
         });
       },
 

@@ -35,6 +35,7 @@ interface AppleWalletCardStackProps {
   onSelectAccount: (accountId: string | null) => void;
   onManageAccounts?: () => void;
   onAddAccount?: () => void;
+  isPrivacyMode?: boolean;
 }
 
 interface AnimatedCardProps {
@@ -44,6 +45,7 @@ interface AnimatedCardProps {
   isFront: boolean;
   isSelected: boolean;
   isExpanded: boolean;
+  isPrivacyMode?: boolean;
   onPress: () => void;
 }
 
@@ -54,6 +56,7 @@ const AnimatedCard: React.FC<AnimatedCardProps> = React.memo(({
   isFront,
   isSelected,
   isExpanded,
+  isPrivacyMode = false,
   onPress,
 }) => {
   const animatedSlot = useSharedValue(slotIndex);
@@ -125,6 +128,7 @@ const AnimatedCard: React.FC<AnimatedCardProps> = React.memo(({
           isActive={isSelected}
           isFront={isFront}
           isExpanded={isExpanded}
+          isPrivacyMode={isPrivacyMode}
         />
       </TouchableOpacity>
     </Animated.View>
@@ -137,6 +141,7 @@ export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = React.m
   onSelectAccount,
   onManageAccounts,
   onAddAccount,
+  isPrivacyMode = false,
 }) => {
   const { colors } = useAppTheme();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -332,6 +337,7 @@ export const AppleWalletCardStack: React.FC<AppleWalletCardStackProps> = React.m
               isFront={isFront}
               isSelected={isSelected}
               isExpanded={isExpanded}
+              isPrivacyMode={isPrivacyMode}
               onPress={() => handleCardPress(acc.id)}
             />
           );

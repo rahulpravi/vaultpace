@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
 import { useStore } from '../store/useStore';
+import { showAlert } from '../store/useAlertStore';
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
@@ -93,17 +94,90 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   // Other Modals & Stable Callbacks
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    actionType: 'destructive' | 'primary';
+    onSuccess: () => void;
+  }>({
+    visible: false,
+    title: '',
+    subtitle: '',
+    actionType: 'primary',
+    onSuccess: () => {},
+  });
 
-  const handleEditTransaction = useCallback((item: Transaction) => {
-    setEditingTransaction(item);
-  }, []);
+  const hasSecurityLock =
+    Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+
+  const handleEditTransaction = useCallback(
+    (item: Transaction) => {
+      triggerHaptic('light');
+      showAlert({
+        type: 'info',
+        title: 'Edit Transaction',
+        message: 'Do you want to edit this transaction record?',
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Edit',
+            onPress: () => {
+              if (hasSecurityLock) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Edit',
+                  subtitle: 'Enter your 4-digit PIN to edit this transaction.',
+                  actionType: 'primary',
+                  onSuccess: () => {
+                    setEditingTransaction(item);
+                  },
+                });
+              } else {
+                setEditingTransaction(item);
+              }
+            },
+          },
+        ],
+      });
+    },
+    [hasSecurityLock]
+  );
 
   const handleDeleteTransaction = useCallback(
     (id: string) => {
-      deleteTransaction(id);
+      triggerHaptic('medium');
+      showAlert({
+        type: 'danger',
+        title: 'Delete Record?',
+        message: 'This action cannot be undone. Are you sure you want to proceed?',
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              if (hasSecurityLock) {
+                setPinModalConfig({
+                  visible: true,
+                  title: 'Authorize Deletion',
+                  subtitle: 'Enter your 4-digit PIN to delete this transaction.',
+                  actionType: 'destructive',
+                  onSuccess: () => {
+                    deleteTransaction(id);
+                    triggerHaptic('success');
+                  },
+                });
+              } else {
+                deleteTransaction(id);
+                triggerHaptic('success');
+              }
+            },
+          },
+        ],
+      });
     },
-    [deleteTransaction]
+    [deleteTransaction, hasSecurityLock]
   );
 
   // Available distinct months extracted from all transactions
@@ -197,8 +271,6 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
   const handleExportPdfPress = useCallback(async () => {
     triggerHaptic('light');
-    const hasSecurityLock =
-      Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
     if (!hasSecurityLock) {
       await exportTransactionsToPdf({
         accounts,
@@ -210,11 +282,24 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       });
       return;
     }
-    setIsPinModalOpen(true);
+    setPinModalConfig({
+      visible: true,
+      title: 'Export Audit Ledger',
+      subtitle: 'Enter your PIN to export your private financial report.',
+      actionType: 'primary',
+      onSuccess: async () => {
+        await exportTransactionsToPdf({
+          accounts,
+          categories,
+          budgets,
+          transactions,
+          settings,
+          totalNetWorth: getTotalNetWorthCents(),
+        });
+      },
+    });
   }, [
-    settings.security_pin,
-    settings.pin_lock_enabled,
-    settings.biometrics_enabled,
+    hasSecurityLock,
     accounts,
     categories,
     budgets,
@@ -1012,21 +1097,12 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
 
       {/* Reusable Security PIN Verification Modal */}
       <PinVerificationModal
-        visible={isPinModalOpen}
-        title="Authorize Ledger Export"
-        subtitle="Enter your 4-digit PIN to generate and download your confidential transaction statement."
-        actionType="primary"
-        onSuccess={async () => {
-          await exportTransactionsToPdf({
-            accounts,
-            categories,
-            budgets,
-            transactions,
-            settings,
-            totalNetWorth: getTotalNetWorthCents(),
-          });
-        }}
-        onClose={() => setIsPinModalOpen(false)}
+        visible={pinModalConfig.visible}
+        title={pinModalConfig.title}
+        subtitle={pinModalConfig.subtitle}
+        actionType={pinModalConfig.actionType}
+        onSuccess={pinModalConfig.onSuccess}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );

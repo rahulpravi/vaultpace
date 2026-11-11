@@ -48,13 +48,31 @@ function AppContent() {
       setIsAppLocked(true);
     }
 
-    // Lock application when returning from background
+    // Lock application when returning from background based on auto_lock_interval
+    let backgroundTime: number | null = null;
     let lastState = AppState.currentState;
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (lastState.match(/inactive|background/) && nextAppState === 'active') {
-        if (hasCompletedOnboarding && (settings.biometrics_enabled || settings.pin_lock_enabled)) {
-          setIsAppLocked(true);
+      const hasLockConfigured =
+        hasCompletedOnboarding && (settings.biometrics_enabled || settings.pin_lock_enabled);
+      const autoLockPref = settings.auto_lock_interval || 'immediate';
+
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        if (lastState === 'active') {
+          backgroundTime = Date.now();
         }
+      } else if (nextAppState === 'active' && lastState.match(/inactive|background/)) {
+        if (hasLockConfigured && autoLockPref !== 'off') {
+          const elapsed = backgroundTime ? Date.now() - backgroundTime : 0;
+          let lockThresholdMs = 0;
+          if (autoLockPref === '1m') lockThresholdMs = 60 * 1000;
+          else if (autoLockPref === '5m') lockThresholdMs = 5 * 60 * 1000;
+          else lockThresholdMs = 0; // 'immediate'
+
+          if (elapsed >= lockThresholdMs) {
+            setIsAppLocked(true);
+          }
+        }
+        backgroundTime = null;
       }
       lastState = nextAppState;
     });
@@ -62,7 +80,14 @@ function AppContent() {
     return () => {
       subscription.remove();
     };
-  }, [hydrateSecurityPin, settings.biometrics_enabled, settings.pin_lock_enabled, setIsAppLocked, hasCompletedOnboarding]);
+  }, [
+    hydrateSecurityPin,
+    settings.biometrics_enabled,
+    settings.pin_lock_enabled,
+    settings.auto_lock_interval,
+    setIsAppLocked,
+    hasCompletedOnboarding,
+  ]);
 
   const onLayoutRootView = useCallback(async () => {
     try {
