@@ -224,7 +224,15 @@ interface TrackerStore {
   addTransaction: (tx: Omit<Transaction, 'id' | 'created_at'>) => Transaction;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
-  settleDebt: (id: string, settlementAccountId: string) => void;
+  settleDebt: (id: string, settlementAccountId: string, partialAmountCents?: number) => void;
+  settlePersonBalance: (
+    contactName: string,
+    contactPhone: string | undefined,
+    amountCents: number,
+    actionType: 'collect' | 'pay',
+    settlementAccountId: string,
+    customNotes?: string
+  ) => void;
 
   addAccount: (acc: Omit<Account, 'id' | 'current_balance' | 'transaction_count'>) => Account;
   updateAccount: (id: string, updates: Partial<Account>) => void;
@@ -377,7 +385,7 @@ export const useStore = create<TrackerStore>()(
         });
       },
 
-      settleDebt: (txId, settlementAccountId) => {
+      settleDebt: (txId, settlementAccountId, partialAmountCents) => {
         const tx = get().transactions.find((t) => t.id === txId);
         if (!tx || tx.is_settled) return;
 
@@ -387,27 +395,44 @@ export const useStore = create<TrackerStore>()(
           now.getMinutes()
         ).padStart(2, '0')}:00`;
 
-        // 1. Mark original debt movement as settled
-        const updatedDebt: Transaction = {
-          ...tx,
-          is_settled: true,
-          settled_at: today,
-          settled_account_id: settlementAccountId,
-        };
+        const isPartial = Boolean(
+          partialAmountCents && partialAmountCents > 0 && partialAmountCents < tx.amount
+        );
+        const settledAmount = isPartial ? partialAmountCents! : tx.amount;
+        const remainingAmount = tx.amount - settledAmount;
+
+        // 1. Mark original debt movement as settled or reduce amount if partial
+        const updatedDebt: Transaction = isPartial
+          ? {
+              ...tx,
+              amount: remainingAmount,
+            }
+          : {
+              ...tx,
+              is_settled: true,
+              settled_at: today,
+              settled_account_id: settlementAccountId,
+            };
 
         // 2. Create the offsetting settlement payment movement in the selected wallet
         const settlementTx: Transaction = {
           id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           account_id: settlementAccountId,
-          amount: tx.amount,
+          amount: settledAmount,
           // Settling borrowed money means you pay it out (expense)
           // Settling lent money means you collect it in (income)
           transaction_type: tx.transaction_type === 'borrow' ? 'expense' : 'income',
           transaction_date: today,
           transaction_time: timeStr,
           is_settlement: true,
-          notes:
-            tx.transaction_type === 'borrow'
+          contact_name: tx.contact_name,
+          contact_phone: tx.contact_phone,
+          settlement_for_id: tx.id,
+          notes: isPartial
+            ? tx.transaction_type === 'borrow'
+              ? `Partial Repayment: Paid to ${tx.contact_name || 'Contact'} (${formatCurrency(remainingAmount, get().settings.default_currency)} remaining)`
+              : `Partial Collection: Received from ${tx.contact_name || 'Contact'} (${formatCurrency(remainingAmount, get().settings.default_currency)} remaining)`
+            : tx.transaction_type === 'borrow'
               ? `Settled: Repaid borrowed money to ${tx.contact_name || 'Contact'}`
               : `Settled: Collected lent money from ${tx.contact_name || 'Contact'}`,
           created_at: new Date().toISOString(),
@@ -421,6 +446,82 @@ export const useStore = create<TrackerStore>()(
 
         set({
           transactions: updatedTxList,
+          accounts: updatedAccounts,
+        });
+      },
+
+      settlePersonBalance: (
+        contactName,
+        contactPhone,
+        amountCents,
+        actionType,
+        settlementAccountId,
+        customNotes
+      ) => {
+        // Collect: Contact is paying user back (applies to active 'lend' transactions)
+        // Pay: User is paying contact back (applies to active 'borrow' transactions)
+        const targetType = actionType === 'collect' ? 'lend' : 'borrow';
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
+          now.getMinutes()
+        ).padStart(2, '0')}:00`;
+
+        let remainingToSettle = amountCents;
+        const currentTxs = [...get().transactions];
+
+        const updatedTxs = currentTxs.map((t) => {
+          if (remainingToSettle <= 0) return t;
+          if (t.transaction_type !== targetType || t.is_settled) return t;
+
+          const matchesContact =
+            (t.contact_name && t.contact_name.trim().toLowerCase() === contactName.trim().toLowerCase()) ||
+            (contactPhone && t.contact_phone && t.contact_phone === contactPhone);
+
+          if (!matchesContact) return t;
+
+          if (t.amount <= remainingToSettle) {
+            remainingToSettle -= t.amount;
+            return {
+              ...t,
+              is_settled: true,
+              settled_at: today,
+              settled_account_id: settlementAccountId,
+            };
+          } else {
+            const newAmount = t.amount - remainingToSettle;
+            remainingToSettle = 0;
+            return {
+              ...t,
+              amount: newAmount,
+            };
+          }
+        });
+
+        // Create settlement payment record in wallet
+        const settlementTx: Transaction = {
+          id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          account_id: settlementAccountId,
+          amount: amountCents,
+          transaction_type: actionType === 'pay' ? 'expense' : 'income',
+          transaction_date: today,
+          transaction_time: timeStr,
+          is_settlement: true,
+          contact_name: contactName,
+          contact_phone: contactPhone,
+          notes:
+            customNotes ||
+            (actionType === 'pay'
+              ? `Repayment: Paid debt to ${contactName}`
+              : `Collection: Received repayment from ${contactName}`),
+          created_at: new Date().toISOString(),
+        };
+
+        const updatedList = [settlementTx, ...updatedTxs];
+        const updatedAccounts = calculateBalances(get().accounts, updatedList);
+
+        set({
+          transactions: updatedList,
           accounts: updatedAccounts,
         });
       },

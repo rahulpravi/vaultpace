@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore } from '../store/useStore';
+import { useStore, formatCurrency, getCurrencySymbol } from '../store/useStore';
 import { showAlert } from '../store/useAlertStore';
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
@@ -35,6 +35,13 @@ import {
 } from 'lucide-react-native';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 
+interface DateGroupItem {
+  dateKey: string;
+  txList: Transaction[];
+  totalIncomeCents: number;
+  totalExpenseCents: number;
+}
+
 export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
@@ -45,6 +52,8 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
   const settings = useStore((s) => s.settings);
   const budgets = useStore((s) => s.budgets);
   const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
+
+  const currencySymbol = getCurrencySymbol(settings.default_currency);
 
   const userAccounts = useMemo(
     () =>
@@ -411,15 +420,40 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     accountMap,
   ]);
 
-  // Group by date
+  // Group by date with filter-aware aggregated income and expense sums
   const groupedTransactions = useMemo(() => {
-    const groups: Record<string, typeof transactions> = {};
+    const groups: Record<
+      string,
+      { txList: Transaction[]; totalIncomeCents: number; totalExpenseCents: number }
+    > = {};
+
     for (const tx of filtered) {
       const d = tx.transaction_date;
-      if (!groups[d]) groups[d] = [];
-      groups[d].push(tx);
+      if (!groups[d]) {
+        groups[d] = {
+          txList: [],
+          totalIncomeCents: 0,
+          totalExpenseCents: 0,
+        };
+      }
+      groups[d].txList.push(tx);
+
+      // Inflows (income + borrow) vs Outflows (expense + lend), transfers remain neutral
+      if (tx.transaction_type === 'income' || tx.transaction_type === 'borrow') {
+        groups[d].totalIncomeCents += tx.amount;
+      } else if (tx.transaction_type === 'expense' || tx.transaction_type === 'lend') {
+        groups[d].totalExpenseCents += tx.amount;
+      }
     }
-    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
+
+    return Object.entries(groups)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([dateKey, val]): DateGroupItem => ({
+        dateKey,
+        txList: val.txList,
+        totalIncomeCents: val.totalIncomeCents,
+        totalExpenseCents: val.totalExpenseCents,
+      }));
   }, [filtered]);
 
   const formatDateHeader = useCallback((dateStr: string) => {
@@ -435,22 +469,37 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     });
   }, []);
 
-  const keyExtractor = useCallback((item: [string, Transaction[]]) => item[0], []);
+  const keyExtractor = useCallback((item: DateGroupItem) => item.dateKey, []);
 
   const renderGroupItem = useCallback(
-    ({ item: [dateKey, txList] }: { item: [string, Transaction[]] }) => (
+    ({ item }: { item: DateGroupItem }) => (
       <View style={styles.groupContainer}>
         <View style={styles.dateHeaderRow}>
-          <Calendar size={13} color={colors.textMuted} />
-          <Text style={[styles.dateHeaderText, { color: colors.textMuted }]}>
-            {formatDateHeader(dateKey)}
-          </Text>
-          <Text style={[styles.dateCountText, { color: colors.textSubtle }]}>
-            ({txList.length})
-          </Text>
+          <View style={styles.dateHeaderLeft}>
+            <Calendar size={13} color={colors.textMuted} />
+            <Text style={[styles.dateHeaderText, { color: colors.textMuted }]}>
+              {formatDateHeader(item.dateKey)}
+            </Text>
+            <Text style={[styles.dateCountText, { color: colors.textSubtle }]}>
+              ({item.txList.length})
+            </Text>
+          </View>
+
+          <View style={styles.dateHeaderRight}>
+            {item.totalIncomeCents > 0 && (
+              <Text style={[styles.dailyIncomeText, { color: '#10B981' }]}>
+                {`+${formatCurrency(item.totalIncomeCents, settings.default_currency)}`}
+              </Text>
+            )}
+            {item.totalExpenseCents > 0 && (
+              <Text style={[styles.dailyExpenseText, { color: '#EF4444' }]}>
+                {`-${formatCurrency(item.totalExpenseCents, settings.default_currency)}`}
+              </Text>
+            )}
+          </View>
         </View>
 
-        {txList.map((tx) => (
+        {item.txList.map((tx) => (
           <TransactionRow
             key={tx.id}
             transaction={tx}
@@ -458,6 +507,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
             account={accountMap.get(tx.account_id)}
             onDelete={handleDeleteTransaction}
             onPress={handleEditTransaction}
+            isPrivacyMode={false}
           />
         ))}
       </View>
@@ -466,6 +516,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
       colors.textMuted,
       colors.textSubtle,
       formatDateHeader,
+      settings.default_currency,
       categoryMap,
       accountMap,
       handleDeleteTransaction,
@@ -1230,10 +1281,16 @@ const styles = StyleSheet.create({
   dateHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
     marginBottom: 8,
     marginTop: 4,
     paddingHorizontal: 4,
+  },
+  dateHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
   },
   dateHeaderText: {
     fontSize: 11,
@@ -1244,6 +1301,21 @@ const styles = StyleSheet.create({
   dateCountText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  dateHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dailyIncomeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  dailyExpenseText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   emptyState: {
     padding: 30,

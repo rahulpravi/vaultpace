@@ -39,14 +39,31 @@ export interface Transaction {
   notes?: string;
   to_account_id?: string; // For transfers
   contact_name?: string; // For borrow/lend transactions
+  contact_phone?: string; // Phone number for borrow/lend and messaging
   due_date?: string; // For borrow/lend transactions (YYYY-MM-DD)
   is_settled?: boolean; // Settlement status for borrow/lend
   settled_at?: string; // Settlement date
   settled_account_id?: string; // Wallet used to return or collect debt
   is_settlement?: boolean; // True if this record is a debt settlement offset
+  settlement_for_id?: string; // Reference to original debt transaction ID if partial/full settlement
   is_recurring?: boolean; // True if repeats monthly
   recurring_frequency?: 'monthly';
   created_at?: string;
+}
+
+export interface ContactDebtSummary {
+  contactKey: string;
+  contactName: string;
+  contactPhone?: string;
+  totalLentCents: number;
+  totalBorrowedCents: number;
+  netBalanceCents: number;
+  transactions: Transaction[];
+  activeDebtsCount: number;
+  settledDebtsCount: number;
+  hasOverdue: boolean;
+  hasDueSoon: boolean;
+  nearestDueDate?: string;
 }
 
 export type PeriodType = 'weekly' | 'monthly' | 'yearly' | 'custom';

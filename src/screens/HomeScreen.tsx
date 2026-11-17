@@ -249,7 +249,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
           </View>
           <Text style={[styles.netWorthAmount, { color: colors.text }]}>
             {settings.is_balance_hidden
-              ? `${getCurrencySymbol(selectedAccount?.currency || settings.default_currency)} •••••••`
+              ? `${getCurrencySymbol(selectedAccount?.currency || settings.default_currency)} ••••••`
               : formatCurrency(
                   selectedAccount ? selectedAccount.current_balance : totalNetWorth,
                   selectedAccount?.currency || settings.default_currency
@@ -274,7 +274,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>INCOME</Text>
               <Text style={[styles.metricValue, { color: colors.success }]}>
                 {settings.is_balance_hidden
-                  ? '••••••'
+                  ? `+${getCurrencySymbol(settings.default_currency)} ••••••`
                   : `+${formatCurrency(totalIncome, settings.default_currency)}`}
               </Text>
             </View>
@@ -290,7 +290,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               <Text style={[styles.metricLabel, { color: colors.textMuted }]}>SPENT</Text>
               <Text style={[styles.metricValue, { color: colors.danger }]}>
                 {settings.is_balance_hidden
-                  ? '••••••'
+                  ? `-${getCurrencySymbol(settings.default_currency)} ••••••`
                   : `-${formatCurrency(totalSpent, settings.default_currency)}`}
               </Text>
             </View>
@@ -343,14 +343,14 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
                 {activeLent > 0 && (
                   <Text style={[styles.debtsBadgeLent, { color: '#059669' }]}>
                     {settings.is_balance_hidden
-                      ? `${getCurrencySymbol(settings.default_currency)} ••••• (Lent)`
+                      ? `+${getCurrencySymbol(settings.default_currency)} •••••• (Lent)`
                       : `+${formatCurrency(activeLent, settings.default_currency)} (Lent)`}
                   </Text>
                 )}
                 {activeBorrowed > 0 && (
                   <Text style={[styles.debtsBadgeBorrowed, { color: '#D97706' }]}>
                     {settings.is_balance_hidden
-                      ? `${getCurrencySymbol(settings.default_currency)} ••••• (Owe)`
+                      ? `-${getCurrencySymbol(settings.default_currency)} •••••• (Owe)`
                       : `-${formatCurrency(activeBorrowed, settings.default_currency)} (Owe)`}
                   </Text>
                 )}
@@ -383,7 +383,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
             <BudgetProgressCard
               budget={activeBudget}
               transactions={filteredTransactions}
-              isPrivacyMode={Boolean(settings.is_balance_hidden)}
+              isPrivacyMode={false}
             />
           </View>
         )}
@@ -423,7 +423,7 @@ export const HomeScreen: React.FC<BottomTabProps<'HomeTab'>> = ({ navigation }) 
               category={categoryMap.get(tx.category_id || '')}
               account={accountMap.get(tx.account_id)}
               showActions={false}
-              isPrivacyMode={Boolean(settings.is_balance_hidden)}
+              isPrivacyMode={false}
             />
           ))
         )}

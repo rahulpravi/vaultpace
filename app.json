@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "jsEngine": "hermes",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/icon.png",
@@ -19,6 +20,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.vaultpace.app",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Allow VaultPace to access your contacts to select counterparties for debts and IOUs."
+      },
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -36,6 +40,9 @@
         "backgroundColor": "#000000"
       },
       "package": "com.vaultpace.app",
+      "permissions": [
+        "android.permission.READ_CONTACTS"
+      ],
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -53,6 +60,12 @@
     "plugins": [
       "expo-secure-store",
       [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow VaultPace to access your contacts to link debts and IOUs."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#F8FAFC",
@@ -64,6 +77,20 @@
             "image": "./assets/icon.png",
             "imageWidth": 140,
             "resizeMode": "contain"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true,
+            "buildArchs": [
+              "arm64-v8a"
+            ],
+            "enableBundleCompression": false
           }
         }
       ]

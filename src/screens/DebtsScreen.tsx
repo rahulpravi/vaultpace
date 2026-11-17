@@ -6,111 +6,185 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Modal,
+  TextInput,
 } from 'react-native';
-import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency } from '../store/useStore';
-import { Transaction, RootStackParamList } from '../types';
+import { useStore, formatCurrency, getCurrencySymbol } from '../store/useStore';
+import { Transaction, ContactDebtSummary, RootStackParamList } from '../types';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
-import { PinVerificationModal } from '../components/security/PinVerificationModal';
+import { ContactLedgerModal } from '../components/domain/ContactLedgerModal';
+import { DebtMessageModal, DebtMessageConfig } from '../components/domain/DebtMessageModal';
+import { cleanPhoneNumber } from '../utils/debtMessaging';
 import { triggerHaptic } from '../utils/haptics';
 import {
   ArrowLeft,
   Coins,
   ArrowDownLeft,
   ArrowUpRight,
-  CheckCircle2,
   Clock,
   AlertTriangle,
   Plus,
-  Trash2,
-  Check,
   X,
-  Wallet,
-  Calendar,
+  Search,
+  MessageSquare,
+  ChevronRight,
+  Phone,
   CheckCheck,
+  BookUser,
 } from 'lucide-react-native';
 
 type DebtsScreenProps = NativeStackScreenProps<RootStackParamList, 'Debts'>;
 
-type FilterTab = 'all_active' | 'lent' | 'borrowed' | 'settled';
+type FilterTab = 'all' | 'lent' | 'borrowed' | 'settled';
 
 export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
   const transactions = useStore((s) => s.transactions);
-  const accounts = useStore((s) => s.accounts);
   const settings = useStore((s) => s.settings);
-  const settleDebt = useStore((s) => s.settleDebt);
-  const deleteTransaction = useStore((s) => s.deleteTransaction);
 
-  const [activeTab, setActiveTab] = useState<FilterTab>('all_active');
+  const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLedgerContact, setSelectedLedgerContact] = useState<ContactDebtSummary | null>(null);
+  const [messageModalConfig, setMessageModalConfig] = useState<DebtMessageConfig | null>(null);
+
+  // Add transaction modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addModalType, setAddModalType] = useState<'borrow' | 'lend'>('lend');
-
-  // Settlement dialog state
-  const [settlementTargetDebt, setSettlementTargetDebt] = useState<Transaction | null>(null);
-  const [selectedSettlementAccountId, setSelectedSettlementAccountId] = useState<string>('');
-  const [pinModalConfig, setPinModalConfig] = useState<{
-    visible: boolean;
-    title: string;
-    subtitle: string;
-    actionType: 'destructive' | 'primary';
-    onSuccess: () => void;
-  }>({
-    visible: false,
-    title: '',
-    subtitle: '',
-    actionType: 'primary',
-    onSuccess: () => {},
-  });
-
-  const hasLockConfigured =
-    Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
+  const [addModalContactName, setAddModalContactName] = useState<string>('');
+  const [addModalContactPhone, setAddModalContactPhone] = useState<string>('');
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const currencySymbol = getCurrencySymbol(settings.default_currency);
 
-  // Filter only user accounts
-  const userAccounts = useMemo(
-    () =>
-      accounts.filter(
-        (a) =>
-          a &&
-          a.name?.toLowerCase() !== 'consolidated' &&
-          a.name?.toLowerCase() !== 'all' &&
-          a.id !== 'consolidated' &&
-          a.id !== 'all'
-      ),
-    [accounts]
-  );
+  // Consolidate debts and settlements into per-contact summaries
+  const contactDebtSummaries: ContactDebtSummary[] = useMemo(() => {
+    const map = new Map<string, ContactDebtSummary>();
 
-  // All debt transactions
-  const allDebts = useMemo(
-    () =>
-      transactions.filter(
-        (t) => t.transaction_type === 'borrow' || t.transaction_type === 'lend'
-      ),
-    [transactions]
-  );
+    for (const t of transactions) {
+      if (
+        t.transaction_type !== 'borrow' &&
+        t.transaction_type !== 'lend' &&
+        !(t.is_settlement && (t.contact_name || t.contact_phone))
+      ) {
+        continue;
+      }
 
-  // Aggregated metrics
+      const name = (t.contact_name || 'Anonymous Contact').trim();
+      const phone = t.contact_phone?.trim() || '';
+      const normName = name.toLowerCase();
+      // Grouping key: normalize by clean phone if present, or by lowercase trimmed name
+      const key = phone ? `phone:${cleanPhoneNumber(phone)}` : `name:${normName}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          contactKey: key,
+          contactName: name,
+          contactPhone: phone || undefined,
+          totalLentCents: 0,
+          totalBorrowedCents: 0,
+          netBalanceCents: 0,
+          activeDebtsCount: 0,
+          settledDebtsCount: 0,
+          transactions: [],
+          hasOverdue: false,
+          hasDueSoon: false,
+          nearestDueDate: undefined,
+        });
+      }
+
+      const summary = map.get(key)!;
+      if (!summary.contactPhone && phone) {
+        summary.contactPhone = phone;
+      }
+      if (name !== 'Anonymous Contact' && summary.contactName === 'Anonymous Contact') {
+        summary.contactName = name;
+      }
+
+      summary.transactions.push(t);
+
+      if (t.transaction_type === 'lend') {
+        if (!t.is_settled) {
+          summary.totalLentCents += t.amount;
+          summary.activeDebtsCount++;
+          if (t.due_date) {
+            if (t.due_date < todayStr) {
+              summary.hasOverdue = true;
+            } else if (
+              new Date(t.due_date).getTime() - new Date(todayStr).getTime() <=
+              3 * 86400000
+            ) {
+              summary.hasDueSoon = true;
+            }
+            if (!summary.nearestDueDate || t.due_date < summary.nearestDueDate) {
+              summary.nearestDueDate = t.due_date;
+            }
+          }
+        } else {
+          summary.settledDebtsCount++;
+        }
+      } else if (t.transaction_type === 'borrow') {
+        if (!t.is_settled) {
+          summary.totalBorrowedCents += t.amount;
+          summary.activeDebtsCount++;
+          if (t.due_date) {
+            if (t.due_date < todayStr) {
+              summary.hasOverdue = true;
+            } else if (
+              new Date(t.due_date).getTime() - new Date(todayStr).getTime() <=
+              3 * 86400000
+            ) {
+              summary.hasDueSoon = true;
+            }
+            if (!summary.nearestDueDate || t.due_date < summary.nearestDueDate) {
+              summary.nearestDueDate = t.due_date;
+            }
+          }
+        } else {
+          summary.settledDebtsCount++;
+        }
+      }
+    }
+
+    const list: ContactDebtSummary[] = [];
+    map.forEach((summary) => {
+      summary.netBalanceCents = summary.totalLentCents - summary.totalBorrowedCents;
+      list.push(summary);
+    });
+
+    // Priority ordering: overdue first, then active debts, then largest magnitude
+    list.sort((a, b) => {
+      if (a.hasOverdue && !b.hasOverdue) return -1;
+      if (!a.hasOverdue && b.hasOverdue) return 1;
+      if (a.activeDebtsCount > 0 && b.activeDebtsCount === 0) return -1;
+      if (a.activeDebtsCount === 0 && b.activeDebtsCount > 0) return 1;
+      return Math.abs(b.netBalanceCents) - Math.abs(a.netBalanceCents);
+    });
+
+    return list;
+  }, [transactions, todayStr]);
+
+  // Keep currently open contact ledger updated if transactions mutate
+  const currentOpenSummary = useMemo(() => {
+    if (!selectedLedgerContact) return null;
+    return (
+      contactDebtSummaries.find((c) => c.contactKey === selectedLedgerContact.contactKey) ||
+      selectedLedgerContact
+    );
+  }, [contactDebtSummaries, selectedLedgerContact]);
+
+  // Top Aggregated Metrics
   const { totalLentCents, totalBorrowedCents, netDebtCents, activeDebtsCount } = useMemo(() => {
     let lent = 0;
     let borrowed = 0;
     let activeCount = 0;
 
-    for (const d of allDebts) {
-      if (!d.is_settled) {
-        activeCount++;
-        if (d.transaction_type === 'lend') {
-          lent += d.amount;
-        } else if (d.transaction_type === 'borrow') {
-          borrowed += d.amount;
-        }
-      }
+    for (const s of contactDebtSummaries) {
+      lent += s.totalLentCents;
+      borrowed += s.totalBorrowedCents;
+      activeCount += s.activeDebtsCount;
     }
 
     return {
@@ -119,97 +193,61 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
       netDebtCents: lent - borrowed,
       activeDebtsCount: activeCount,
     };
-  }, [allDebts]);
+  }, [contactDebtSummaries]);
 
-  // Filtered debts based on active tab
-  const displayedDebts = useMemo(() => {
-    return allDebts.filter((d) => {
-      if (activeTab === 'all_active') return !d.is_settled;
-      if (activeTab === 'lent') return !d.is_settled && d.transaction_type === 'lend';
-      if (activeTab === 'borrowed') return !d.is_settled && d.transaction_type === 'borrow';
-      if (activeTab === 'settled') return Boolean(d.is_settled);
-      return true;
-    });
-  }, [allDebts, activeTab]);
+  // Filtered contacts based on active tab & search query
+  const filteredContacts = useMemo(() => {
+    let result = contactDebtSummaries;
 
-  const handleOpenSettlement = (debt: Transaction) => {
-    triggerHaptic('medium');
-    setSettlementTargetDebt(debt);
-    setSelectedSettlementAccountId(userAccounts[0]?.id || debt.account_id);
-  };
+    if (activeTab === 'lent') {
+      result = result.filter((c) => c.netBalanceCents > 0);
+    } else if (activeTab === 'borrowed') {
+      result = result.filter((c) => c.netBalanceCents < 0);
+    } else if (activeTab === 'settled') {
+      result = result.filter((c) => c.netBalanceCents === 0);
+    }
 
-  const handleConfirmSettlement = useCallback(() => {
-    if (!settlementTargetDebt || !selectedSettlementAccountId) return;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (c) =>
+          c.contactName.toLowerCase().includes(q) ||
+          (c.contactPhone && c.contactPhone.toLowerCase().includes(q))
+      );
+    }
 
-    settleDebt(settlementTargetDebt.id, selectedSettlementAccountId);
-    triggerHaptic('success');
+    return result;
+  }, [contactDebtSummaries, activeTab, searchQuery]);
 
-    const contact = settlementTargetDebt.contact_name || 'Contact';
-    const isBorrow = settlementTargetDebt.transaction_type === 'borrow';
-
-    showAlert({
-      type: 'success',
-      title: 'Debt Settled',
-      message: isBorrow
-        ? `Marked repayment to ${contact} as completed. Wallet balance updated.`
-        : `Marked debt collection from ${contact} as completed. Wallet balance updated.`,
-    });
-
-    setSettlementTargetDebt(null);
-  }, [settlementTargetDebt, selectedSettlementAccountId, settleDebt]);
-
-  const handleDeleteDebt = useCallback(
-    (id: string, name: string) => {
+  // Open Message / Reminder modal for a contact
+  const handleOpenReminder = useCallback(
+    (summary: ContactDebtSummary, e?: any) => {
+      e?.stopPropagation?.();
       triggerHaptic('light');
-      showAlert({
-        type: 'danger',
-        title: 'Remove Record',
-        message: `Are you sure you want to remove this debt record for "${name}"?`,
-        buttons: [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: () => {
-              if (hasLockConfigured) {
-                setPinModalConfig({
-                  visible: true,
-                  title: 'Authorize Deletion',
-                  subtitle: `Enter your PIN to remove this record for "${name}".`,
-                  actionType: 'destructive',
-                  onSuccess: () => {
-                    deleteTransaction(id);
-                    triggerHaptic('success');
-                  },
-                });
-              } else {
-                deleteTransaction(id);
-                triggerHaptic('success');
-              }
-            },
-          },
-        ],
+
+      const isOwed = summary.netBalanceCents > 0;
+      const formattedNet = formatCurrency(Math.abs(summary.netBalanceCents), settings.default_currency);
+
+      setMessageModalConfig({
+        visible: true,
+        contactName: summary.contactName,
+        contactPhone: summary.contactPhone,
+        messageType: isOwed ? 'reminder' : summary.netBalanceCents === 0 ? 'settled' : 'reminder',
+        currencySymbol,
+        netAmountFormatted: formattedNet,
+        dueDate: summary.nearestDueDate,
       });
     },
-    [deleteTransaction, hasLockConfigured]
+    [currencySymbol, settings.default_currency]
   );
 
-  const formatDueDateDisplay = useCallback(
-    (dueDateStr?: string) => {
-      if (!dueDateStr) return null;
-      const isOverdue = dueDateStr < todayStr;
-      const isDueSoon =
-        !isOverdue &&
-        new Date(dueDateStr).getTime() - new Date(todayStr).getTime() <= 3 * 86400000;
-
-      return {
-        text: dueDateStr,
-        isOverdue,
-        isDueSoon,
-      };
-    },
-    [todayStr]
-  );
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return (parts[0]?.[0] || 'C').toUpperCase();
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -237,7 +275,7 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
         <View style={styles.headerTitleWrap}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Debts & IOUs</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
-            {activeDebtsCount} active • Loan & credit tracking
+            {contactDebtSummaries.length} contacts • {activeDebtsCount} active records
           </Text>
         </View>
 
@@ -245,6 +283,8 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
           onPress={() => {
             triggerHaptic('light');
             setAddModalType('lend');
+            setAddModalContactName('');
+            setAddModalContactPhone('');
             setIsAddModalOpen(true);
           }}
           style={[styles.addBtn, { backgroundColor: colors.accent }]}
@@ -323,8 +363,10 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
               { color: netDebtCents >= 0 ? '#059669' : colors.danger },
             ]}
           >
-            {netDebtCents >= 0 ? '+' : ''}
-            {formatCurrency(netDebtCents, settings.default_currency)}
+            {`${netDebtCents >= 0 ? '+' : ''}${formatCurrency(
+              netDebtCents,
+              settings.default_currency
+            )}`}
           </Text>
         </View>
 
@@ -334,9 +376,14 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
             onPress={() => {
               triggerHaptic('light');
               setAddModalType('lend');
+              setAddModalContactName('');
+              setAddModalContactPhone('');
               setIsAddModalOpen(true);
             }}
-            style={[styles.quickActionButton, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+            style={[
+              styles.quickActionButton,
+              { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+            ]}
           >
             <ArrowUpRight size={15} color="#059669" />
             <Text style={[styles.quickActionText, { color: '#065F46' }]}>+ Record Lent</Text>
@@ -346,13 +393,40 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
             onPress={() => {
               triggerHaptic('light');
               setAddModalType('borrow');
+              setAddModalContactName('');
+              setAddModalContactPhone('');
               setIsAddModalOpen(true);
             }}
-            style={[styles.quickActionButton, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}
+            style={[
+              styles.quickActionButton,
+              { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+            ]}
           >
             <ArrowDownLeft size={15} color="#D97706" />
             <Text style={[styles.quickActionText, { color: '#92400E' }]}>+ Record Borrowed</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <View
+          style={[
+            styles.searchBar,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <Search size={16} color={colors.textMuted} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search by contact name or phone..."
+            placeholderTextColor={colors.textMuted + '80'}
+            style={[styles.searchInput, { color: colors.text }]}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={15} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Filter Tabs */}
@@ -360,23 +434,23 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
           <TouchableOpacity
             onPress={() => {
               triggerHaptic('selection');
-              setActiveTab('all_active');
+              setActiveTab('all');
             }}
             style={[
               styles.filterChip,
               {
-                backgroundColor: activeTab === 'all_active' ? colors.accent : colors.surface,
-                borderColor: activeTab === 'all_active' ? colors.accent : colors.border,
+                backgroundColor: activeTab === 'all' ? colors.accent : colors.surface,
+                borderColor: activeTab === 'all' ? colors.accent : colors.border,
               },
             ]}
           >
             <Text
               style={[
                 styles.filterChipText,
-                { color: activeTab === 'all_active' ? colors.onAccent : colors.text },
+                { color: activeTab === 'all' ? colors.onAccent : colors.text },
               ]}
             >
-              All Active ({activeDebtsCount})
+              All People ({contactDebtSummaries.length})
             </Text>
           </TouchableOpacity>
 
@@ -450,317 +524,198 @@ export const DebtsScreen: React.FC<DebtsScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Debt Cards List */}
-        {displayedDebts.length === 0 ? (
+        {/* Grouped Person Cards List */}
+        {filteredContacts.length === 0 ? (
           <View
             style={[
               styles.emptyState,
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
           >
-            <Coins size={36} color={colors.textMuted} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No records found</Text>
+            <BookUser size={36} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No contacts found</Text>
             <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-              {activeTab === 'settled'
-                ? 'No debts have been marked as settled yet.'
-                : 'No active borrowed or lent transactions matching this filter.'}
+              {searchQuery.trim()
+                ? `No contacts matching "${searchQuery}".`
+                : activeTab === 'settled'
+                ? 'No settled contacts yet.'
+                : 'No borrowed or lent records matching this filter.'}
             </Text>
           </View>
         ) : (
-          displayedDebts.map((debt) => {
-            const isBorrow = debt.transaction_type === 'borrow';
-            const account = userAccounts.find((a) => a.id === debt.account_id);
-            const settlementAccount = debt.settled_account_id
-              ? userAccounts.find((a) => a.id === debt.settled_account_id)
-              : null;
-            const dueInfo = formatDueDateDisplay(debt.due_date);
-            const contactName = debt.contact_name || 'Anonymous Contact';
-            const initials = contactName
-              .split(' ')
-              .map((n) => n[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2);
+          filteredContacts.map((contact) => {
+            const initials = getInitials(contact.contactName);
+            const net = contact.netBalanceCents;
+            const isOwed = net > 0;
+            const isOwing = net < 0;
+            const isSettled = net === 0;
+
+            const netColor = isOwed ? '#059669' : isOwing ? '#D97706' : colors.textMuted;
+            const avatarBg = isOwed ? '#D1FAE5' : isOwing ? '#FEF3C7' : colors.surfaceSubtle;
+            const avatarText = isOwed ? '#059669' : isOwing ? '#D97706' : colors.textMuted;
+
+            const formattedNet = `${isOwed ? '+' : isOwing ? '-' : ''}${formatCurrency(
+              Math.abs(net),
+              settings.default_currency
+            )}`;
 
             return (
-              <View
-                key={debt.id}
+              <TouchableOpacity
+                key={contact.contactKey}
+                activeOpacity={0.7}
+                onPress={() => {
+                  triggerHaptic('light');
+                  setSelectedLedgerContact(contact);
+                }}
                 style={[
-                  styles.debtCard,
+                  styles.contactCard,
                   { backgroundColor: colors.surface, borderColor: colors.border },
                 ]}
               >
-                {/* Top Row: Contact + Type Badge */}
-                <View style={styles.cardTopRow}>
-                  <View style={styles.contactLeft}>
-                    <View
-                      style={[
-                        styles.avatarCircle,
-                        {
-                          backgroundColor: isBorrow ? '#FEF3C7' : '#D1FAE5',
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.avatarText,
-                          { color: isBorrow ? '#D97706' : '#059669' },
-                        ]}
-                      >
-                        {initials}
-                      </Text>
+                {/* Top Row: Avatar + Name + Net Badge */}
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.contactInfoCol}>
+                    <View style={[styles.avatarCircle, { backgroundColor: avatarBg }]}>
+                      <Text style={[styles.avatarText, { color: avatarText }]}>{initials}</Text>
                     </View>
-                    <View>
-                      <Text style={[styles.contactName, { color: colors.text }]}>
-                        {contactName}
+
+                    <View style={styles.nameWrap}>
+                      <Text style={[styles.contactName, { color: colors.text }]} numberOfLines={1}>
+                        {contact.contactName}
                       </Text>
-                      <Text style={[styles.debtDate, { color: colors.textMuted }]}>
-                        Recorded on {debt.transaction_date}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.typeBadge,
-                      {
-                        backgroundColor: isBorrow ? '#FEF3C7' : '#D1FAE5',
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.typeBadgeText,
-                        { color: isBorrow ? '#D97706' : '#059669' },
-                      ]}
-                    >
-                      {isBorrow ? 'YOU BORROWED' : 'YOU LENT'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Amount and Due Date Row */}
-                <View style={styles.amountRow}>
-                  <View>
-                    <Text style={[styles.amountLabel, { color: colors.textMuted }]}>AMOUNT</Text>
-                    <Text
-                      style={[
-                        styles.debtAmount,
-                        { color: isBorrow ? '#D97706' : '#059669' },
-                      ]}
-                    >
-                      {formatCurrency(debt.amount, account?.currency || settings.default_currency)}
-                    </Text>
-                  </View>
-
-                  {/* Due Date Badge */}
-                  {debt.due_date ? (
-                    <View style={styles.dueDateWrap}>
-                      <Text style={[styles.amountLabel, { color: colors.textMuted }]}>DUE DATE</Text>
-                      <View style={styles.dueStatusRow}>
-                        <Calendar size={13} color={colors.textMuted} />
-                        <Text style={[styles.dueDateText, { color: colors.text }]}>
-                          {debt.due_date}
+                      <View style={styles.contactMetaRow}>
+                        {contact.contactPhone ? (
+                          <View style={styles.phoneBadge}>
+                            <Phone size={10} color={colors.textMuted} />
+                            <Text style={[styles.phoneBadgeText, { color: colors.textMuted }]}>
+                              {contact.contactPhone}
+                            </Text>
+                          </View>
+                        ) : null}
+                        <Text style={[styles.txCountBadge, { color: colors.textMuted }]}>
+                          {contact.transactions.length}{' '}
+                          {contact.transactions.length === 1 ? 'entry' : 'entries'}
                         </Text>
                       </View>
-                      {!debt.is_settled && dueInfo?.isOverdue && (
-                        <View style={[styles.overdueBadge, { backgroundColor: colors.dangerLight }]}>
-                          <AlertTriangle size={10} color={colors.danger} />
-                          <Text style={[styles.overdueText, { color: colors.danger }]}>OVERDUE</Text>
-                        </View>
-                      )}
-                      {!debt.is_settled && dueInfo?.isDueSoon && (
-                        <View style={[styles.overdueBadge, { backgroundColor: '#FEF3C7' }]}>
-                          <Clock size={10} color="#D97706" />
-                          <Text style={[styles.overdueText, { color: '#D97706' }]}>DUE SOON</Text>
-                        </View>
-                      )}
                     </View>
-                  ) : (
-                    <View style={styles.dueDateWrap}>
-                      <Text style={[styles.amountLabel, { color: colors.textMuted }]}>DUE DATE</Text>
-                      <Text style={[styles.noDueDate, { color: colors.textMuted }]}>
-                        No due date set
+                  </View>
+
+                  <ChevronRight size={18} color={colors.textMuted} />
+                </View>
+
+                {/* Net Balance Banner */}
+                <View
+                  style={[
+                    styles.netBalanceRow,
+                    {
+                      backgroundColor: isOwed
+                        ? '#ECFDF5'
+                        : isOwing
+                        ? '#FFFBEB'
+                        : colors.surfaceSubtle,
+                      borderColor: isOwed ? '#A7F3D0' : isOwing ? '#FDE68A' : colors.border,
+                    },
+                  ]}
+                >
+                  <View>
+                    <Text style={[styles.netBalanceLabel, { color: netColor }]}>
+                      {isOwed ? 'OWED TO YOU' : isOwing ? 'YOU OWE' : 'BALANCE'}
+                    </Text>
+                    <Text style={[styles.netBalanceAmount, { color: netColor }]}>
+                      {isSettled ? `Settled (${formattedNet})` : `${formattedNet}`}
+                    </Text>
+                  </View>
+
+                  {/* Overdue / Due Soon Alert Tag */}
+                  {contact.hasOverdue && (
+                    <View style={[styles.overdueBadge, { backgroundColor: '#FEE2E2' }]}>
+                      <AlertTriangle size={11} color="#DC2626" />
+                      <Text style={[styles.overdueBadgeText, { color: "#DC2626" }]}>OVERDUE</Text>
+                    </View>
+                  )}
+                  {!contact.hasOverdue && contact.nearestDueDate && (
+                    <View style={[styles.dueSoonBadge, { backgroundColor: colors.surfaceSubtle }]}>
+                      <Clock size={11} color={colors.textMuted} />
+                      <Text style={[styles.dueSoonBadgeText, { color: colors.textMuted }]}>
+                        Due {contact.nearestDueDate}
                       </Text>
                     </View>
                   )}
                 </View>
 
-                {/* Notes if available */}
-                {debt.notes ? (
-                  <View style={[styles.notesBox, { backgroundColor: colors.surfaceSubtle }]}>
-                    <Text style={[styles.notesText, { color: colors.textMuted }]}>
-                      "{debt.notes}"
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Card Footer: Wallet + Settlement Actions */}
+                {/* Card Actions: Quick Message/Reminder button & Passbook trigger */}
                 <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
-                  <View style={styles.walletMeta}>
-                    <Wallet size={13} color={colors.textMuted} />
-                    <Text style={[styles.walletName, { color: colors.textMuted }]}>
-                      {account?.name || 'Wallet'}
+                  <TouchableOpacity
+                    onPress={(e) => handleOpenReminder(contact, e)}
+                    style={[
+                      styles.reminderBtn,
+                      {
+                        backgroundColor: colors.surfaceSubtle,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <MessageSquare size={13} color="#059669" />
+                    <Text style={[styles.reminderBtnText, { color: colors.text }]}>
+                      {isOwed ? 'Send Reminder' : isSettled ? 'Send Receipt' : 'Send Message'}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
 
-                  {debt.is_settled ? (
-                    <View style={styles.settledBadge}>
-                      <CheckCheck size={14} color="#059669" />
-                      <Text style={styles.settledBadgeText}>
-                        Settled {debt.settled_at || ''}{' '}
-                        {settlementAccount ? `via ${settlementAccount.name}` : ''}
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.actionBtnRow}>
-                      <TouchableOpacity
-                        onPress={() => handleDeleteDebt(debt.id, contactName)}
-                        style={[styles.trashBtn, { borderColor: colors.border }]}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Trash2 size={15} color={colors.textMuted} />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        onPress={() => handleOpenSettlement(debt)}
-                        style={[styles.settleBtn, { backgroundColor: colors.accent }]}
-                        activeOpacity={0.8}
-                      >
-                        <CheckCircle2 size={15} color={colors.onAccent} />
-                        <Text style={[styles.settleBtnText, { color: colors.onAccent }]}>
-                          Mark as Settled
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  <TouchableOpacity
+                    onPress={() => {
+                      triggerHaptic('light');
+                      setSelectedLedgerContact(contact);
+                    }}
+                    style={styles.openLedgerBtn}
+                  >
+                    <Text style={[styles.openLedgerBtnText, { color: colors.accent }]}>
+                      View Ledger →
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
       </ScrollView>
 
-      {/* Settlement Wallet Picker Modal */}
-      <Modal
-        visible={Boolean(settlementTargetDebt)}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setSettlementTargetDebt(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <View>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Settle Record</Text>
-                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
-                  {settlementTargetDebt?.transaction_type === 'borrow'
-                    ? `Repaying ${settlementTargetDebt.contact_name}`
-                    : `Collecting from ${settlementTargetDebt?.contact_name}`}
-                </Text>
-              </View>
+      {/* Per-Person Passbook Ledger Modal (Khata View) */}
+      <ContactLedgerModal
+        visible={Boolean(selectedLedgerContact)}
+        contactSummary={currentOpenSummary}
+        onClose={() => setSelectedLedgerContact(null)}
+        onOpenAddModal={(type, name, phone) => {
+          setSelectedLedgerContact(null);
+          setAddModalType(type);
+          setAddModalContactName(name);
+          setAddModalContactPhone(phone || '');
+          setIsAddModalOpen(true);
+        }}
+        onOpenMessageModal={(summary) => {
+          handleOpenReminder(summary);
+        }}
+      />
 
-              <TouchableOpacity
-                onPress={() => setSettlementTargetDebt(null)}
-                style={[styles.closeBtn, { backgroundColor: colors.surfaceSubtle }]}
-              >
-                <X size={18} color={colors.text} />
-              </TouchableOpacity>
-            </View>
+      {/* WhatsApp / SMS Reminder & Notification Modal */}
+      {messageModalConfig && (
+        <DebtMessageModal
+          config={messageModalConfig}
+          onClose={() => setMessageModalConfig(null)}
+        />
+      )}
 
-            <View style={styles.modalBody}>
-              <Text style={[styles.modalAmountPrompt, { color: colors.text }]}>
-                Amount:{' '}
-                <Text
-                  style={{
-                    color:
-                      settlementTargetDebt?.transaction_type === 'borrow' ? '#D97706' : '#059669',
-                    fontWeight: '800',
-                  }}
-                >
-                  {formatCurrency(settlementTargetDebt?.amount || 0, settings.default_currency)}
-                </Text>
-              </Text>
-
-              <Text style={[styles.selectorLabel, { color: colors.textMuted }]}>
-                {settlementTargetDebt?.transaction_type === 'borrow'
-                  ? 'Select Wallet to Pay Out of:'
-                  : 'Select Wallet to Receive Into:'}
-              </Text>
-
-              <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
-                {userAccounts.map((acc) => {
-                  const isSelected = selectedSettlementAccountId === acc.id;
-                  return (
-                    <TouchableOpacity
-                      key={acc.id}
-                      onPress={() => {
-                        triggerHaptic('selection');
-                        setSelectedSettlementAccountId(acc.id);
-                      }}
-                      style={[
-                        styles.walletSelectItem,
-                        {
-                          backgroundColor: isSelected ? colors.surfaceSubtle : colors.surface,
-                          borderColor: isSelected ? colors.accent : colors.border,
-                          borderWidth: isSelected ? 2 : 1,
-                        },
-                      ]}
-                    >
-                      <View style={styles.walletItemLeft}>
-                        <View
-                          style={[
-                            styles.walletDot,
-                            { backgroundColor: acc.color || colors.accent },
-                          ]}
-                        />
-                        <View>
-                          <Text style={[styles.walletItemName, { color: colors.text }]}>
-                            {acc.name}
-                          </Text>
-                          <Text style={[styles.walletItemType, { color: colors.textMuted }]}>
-                            {acc.account_type.toUpperCase()} • Balance:{' '}
-                            {formatCurrency(acc.current_balance, acc.currency)}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {isSelected && <Check size={18} color={colors.accent} strokeWidth={2.5} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              <TouchableOpacity
-                onPress={handleConfirmSettlement}
-                style={[styles.confirmBtn, { backgroundColor: colors.accent }]}
-                activeOpacity={0.8}
-              >
-                <Check size={18} color={colors.onAccent} strokeWidth={2.5} />
-                <Text style={[styles.confirmBtnText, { color: colors.onAccent }]}>
-                  Confirm & Adjust Wallet Balance
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Record Movement Modal */}
+      {/* Add / Edit Transaction Modal */}
       <AddTransactionModal
         visible={isAddModalOpen}
         initialType={addModalType}
-        onClose={() => setIsAddModalOpen(false)}
-      />
-
-      {/* PIN Verification Modal */}
-      <PinVerificationModal
-        visible={pinModalConfig.visible}
-        title={pinModalConfig.title}
-        subtitle={pinModalConfig.subtitle}
-        actionType={pinModalConfig.actionType}
-        onSuccess={pinModalConfig.onSuccess}
-        onClose={() => setPinModalConfig((prev) => ({ ...prev, visible: false }))}
+        initialContactName={addModalContactName}
+        initialContactPhone={addModalContactPhone}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setAddModalContactName('');
+          setAddModalContactPhone('');
+        }}
       />
     </View>
   );
@@ -817,7 +772,7 @@ const styles = StyleSheet.create({
   summaryCard: {
     flex: 1,
     padding: 14,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
   },
   summaryHeader: {
@@ -827,8 +782,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   summaryIconBox: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -836,18 +791,17 @@ const styles = StyleSheet.create({
   summaryCardLabel: {
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   summaryAmount: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
-    fontVariant: ['tabular-nums'],
     letterSpacing: -0.5,
   },
   summaryFootnote: {
     fontSize: 10,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 4,
   },
   netDebtBanner: {
     flexDirection: 'row',
@@ -855,7 +809,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     marginBottom: 14,
   },
@@ -871,12 +825,11 @@ const styles = StyleSheet.create({
   netDebtValue: {
     fontSize: 15,
     fontWeight: '800',
-    fontVariant: ['tabular-nums'],
   },
   quickActionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   quickActionButton: {
     flex: 1,
@@ -884,22 +837,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1,
   },
   quickActionText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
   },
   filterScroll: {
-    flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
     borderWidth: 1,
     marginRight: 8,
   },
@@ -908,272 +875,154 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   emptyState: {
+    padding: 32,
+    borderRadius: 18,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 36,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderStyle: 'dashed',
     marginTop: 20,
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     marginTop: 12,
   },
   emptySubtitle: {
     fontSize: 12,
     fontWeight: '500',
+    marginTop: 4,
     textAlign: 'center',
-    marginTop: 4,
-    maxWidth: 260,
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
-  debtCard: {
-    padding: 16,
-    borderRadius: 20,
+  contactCard: {
+    borderRadius: 18,
     borderWidth: 1,
-    marginBottom: 12,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  contactLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  avatarCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  contactName: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  debtDate: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  amountLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 3,
-  },
-  debtAmount: {
-    fontSize: 22,
-    fontWeight: '900',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
-  },
-  dueDateWrap: {
-    alignItems: 'flex-end',
-  },
-  dueStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  dueDateText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  noDueDate: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  overdueBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  overdueText: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  notesBox: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  notesText: {
-    fontSize: 11,
-    fontWeight: '500',
-    fontStyle: 'italic',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  walletMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  walletName: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  settledBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  settledBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  actionBtnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  trashBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  settleBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 34,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBody: {
-    paddingTop: 16,
-  },
-  modalAmountPrompt: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  selectorLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  walletSelectItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 14,
-    borderRadius: 14,
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  walletItemLeft: {
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  contactInfoCol: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
   },
-  walletDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  walletItemName: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  walletItemType: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  confirmBtn: {
-    flexDirection: 'row',
+  avatarCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 50,
-    borderRadius: 14,
-    gap: 8,
-    marginTop: 16,
   },
-  confirmBtnText: {
+  avatarText: {
     fontSize: 14,
+    fontWeight: '800',
+  },
+  nameWrap: {
+    flex: 1,
+  },
+  contactName: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  contactMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  phoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  phoneBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  txCountBadge: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  netBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  netBalanceLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  netBalanceAmount: {
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+    marginTop: 1,
+  },
+  overdueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  overdueBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  dueSoonBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  dueSoonBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  reminderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  reminderBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  openLedgerBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  openLedgerBtnText: {
+    fontSize: 12,
     fontWeight: '800',
   },
 });

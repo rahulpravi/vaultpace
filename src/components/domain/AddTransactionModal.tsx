@@ -35,6 +35,8 @@ import {
   PiggyBank,
   CreditCard as CreditCardIcon,
   Briefcase,
+  BookUser,
+  Phone,
 } from 'lucide-react-native';
 import {
   CustomAmountKeypad,
@@ -42,12 +44,16 @@ import {
 } from '../common/CustomAmountKeypad';
 import { AddCategoryModal } from './AddCategoryModal';
 import { CalendarDatePickerModal } from '../common/CalendarDatePickerModal';
+import { ContactPickerModal } from './ContactPickerModal';
+import { DebtMessageModal, DebtMessageConfig } from './DebtMessageModal';
 import { getCategoryIconComponent } from '../../utils/categoryIcons';
 
 interface AddTransactionModalProps {
   visible: boolean;
   initialType?: TransactionType;
   initialTransaction?: Transaction | null;
+  initialContactName?: string;
+  initialContactPhone?: string;
   onClose: () => void;
 }
 
@@ -55,6 +61,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
   visible,
   initialType = 'expense',
   initialTransaction = null,
+  initialContactName = '',
+  initialContactPhone = '',
   onClose,
 }) => {
   const { colors } = useAppTheme();
@@ -108,13 +116,16 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(() =>
     getDefaultCategoryIdForType(initialType)
   );
-  const [contactName, setContactName] = useState('');
+  const [contactName, setContactName] = useState(initialContactName);
+  const [contactPhone, setContactPhone] = useState(initialContactPhone);
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [savedDebtMessageConfig, setSavedDebtMessageConfig] = useState<DebtMessageConfig | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
 
   // Dropdown Picker Sheet Active State: 'fromWallet' | 'toWallet' | 'category' | null
@@ -141,29 +152,33 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         );
         setNotes(initialTransaction.notes || '');
         setContactName(initialTransaction.contact_name || '');
+        setContactPhone(initialTransaction.contact_phone || initialContactPhone || '');
         setDueDate(initialTransaction.due_date || '');
         setSelectedDate(initialTransaction.transaction_date || todayStr);
         setIsRecurring(Boolean(initialTransaction.is_recurring));
         setIsAmountFocused(true);
         setError(null);
         setActivePicker(null);
+        setSavedDebtMessageConfig(null);
       } else {
         const activeType = initialType || 'expense';
         setType(activeType);
         setAmountStr('');
         setNotes('');
-        setContactName('');
+        setContactName(initialContactName || '');
+        setContactPhone(initialContactPhone || '');
         setDueDate('');
         setSelectedDate(todayStr);
         setIsRecurring(false);
         setIsAmountFocused(true);
         setError(null);
         setActivePicker(null);
+        setSavedDebtMessageConfig(null);
         Keyboard.dismiss();
         setSelectedCategoryId(getDefaultCategoryIdForType(activeType));
       }
     }
-  }, [visible, initialType, initialTransaction, todayStr]);
+  }, [visible, initialType, initialTransaction, initialContactName, initialContactPhone, todayStr]);
 
   // Synchronize default accounts if userAccounts change
   useEffect(() => {
@@ -279,6 +294,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
     setAmountStr('');
     setNotes('');
     setContactName('');
+    setContactPhone('');
     setDueDate('');
     setError(null);
     setType('expense');
@@ -287,6 +303,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
     setSelectedCategoryId(getDefaultCategoryIdForType('expense'));
     setActivePicker(null);
     setIsAmountFocused(true);
+    setSavedDebtMessageConfig(null);
     Keyboard.dismiss();
   };
 
@@ -307,6 +324,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         to_account_id: type === 'transfer' ? selectedToAccountId : undefined,
         contact_name:
           type === 'borrow' || type === 'lend' ? contactName.trim() : undefined,
+        contact_phone:
+          (type === 'borrow' || type === 'lend') && contactPhone.trim()
+            ? contactPhone.trim()
+            : undefined,
         due_date:
           (type === 'borrow' || type === 'lend') && dueDate.trim()
             ? dueDate.trim()
@@ -314,6 +335,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         is_recurring: isRecurring,
         recurring_frequency: isRecurring ? 'monthly' : undefined,
       });
+
+      triggerHaptic('success');
+      resetForm();
+      onClose();
     } else {
       addTransaction({
         account_id: selectedAccountId,
@@ -326,6 +351,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         to_account_id: type === 'transfer' ? selectedToAccountId : undefined,
         contact_name:
           type === 'borrow' || type === 'lend' ? contactName.trim() : undefined,
+        contact_phone:
+          (type === 'borrow' || type === 'lend') && contactPhone.trim()
+            ? contactPhone.trim()
+            : undefined,
         due_date:
           (type === 'borrow' || type === 'lend') && dueDate.trim()
             ? dueDate.trim()
@@ -334,11 +363,27 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         is_recurring: isRecurring,
         recurring_frequency: isRecurring ? 'monthly' : undefined,
       });
-    }
 
-    triggerHaptic('success');
-    resetForm();
-    onClose();
+      triggerHaptic('success');
+
+      if (type === 'borrow' || type === 'lend') {
+        setSavedDebtMessageConfig({
+          visible: true,
+          contactName: contactName.trim(),
+          contactPhone: contactPhone.trim() || undefined,
+          messageType: 'new_entry',
+          currencySymbol,
+          paymentAmountFormatted: formatCurrency(cents, activeCurrency),
+          netAmountFormatted: formatCurrency(cents, activeCurrency),
+          movementType: type,
+          date: selectedDate,
+          dueDate: dueDate.trim() || undefined,
+        });
+      } else {
+        resetForm();
+        onClose();
+      }
+    }
   };
 
   const handleSave = () => {
@@ -816,14 +861,35 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
               ) : null}
             </View>
 
-            {/* Dynamic Debt Fields: Person / Contact Name */}
+            {/* Dynamic Debt Fields: Person / Contact Name & Phone */}
             {isDebtType && (
               <View style={styles.debtFieldBlock}>
-                <Text style={[styles.label, { color: colors.textMuted, marginTop: 12 }]}>
-                  {type === 'borrow'
-                    ? 'Borrowed From (Contact Name) *'
-                    : 'Lent To (Contact Name) *'}
-                </Text>
+                <View style={styles.contactHeaderRow}>
+                  <Text style={[styles.label, { color: colors.textMuted, marginTop: 0 }]}>
+                    {type === 'borrow'
+                      ? 'Borrowed From (Contact Name) *'
+                      : 'Lent To (Contact Name) *'}
+                  </Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowContactPicker(true);
+                    }}
+                    style={[
+                      styles.pickContactBtn,
+                      {
+                        backgroundColor: colors.surfaceSubtle,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <BookUser size={13} color={colors.accent} />
+                    <Text style={[styles.pickContactBtnText, { color: colors.accent }]}>
+                      Pick Contact
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 <View
                   style={[
                     styles.inputWithIcon,
@@ -850,6 +916,45 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
                     placeholderTextColor={colors.textMuted + '80'}
                     style={[styles.innerInput, { color: colors.text }]}
                   />
+                </View>
+
+                {/* Contact Phone (Optional for WhatsApp / SMS notifications) */}
+                <Text style={[styles.label, { color: colors.textMuted, marginTop: 12 }]}>
+                  Phone Number (Optional - for WhatsApp / SMS)
+                </Text>
+                <View
+                  style={[
+                    styles.inputWithIcon,
+                    {
+                      backgroundColor: colors.surfaceSubtle,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Phone size={18} color={colors.textMuted} />
+                  <TextInput
+                    value={contactPhone}
+                    onChangeText={(val) => {
+                      setContactPhone(val);
+                      setError(null);
+                    }}
+                    onFocus={() => {
+                      setActivePicker(null);
+                      setIsAmountFocused(false);
+                    }}
+                    placeholder="e.g. +1 555-123-4567 or 9876543210"
+                    placeholderTextColor={colors.textMuted + '80'}
+                    keyboardType="phone-pad"
+                    style={[styles.innerInput, { color: colors.text }]}
+                  />
+                  {contactPhone ? (
+                    <TouchableOpacity
+                      onPress={() => setContactPhone('')}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <X size={16} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
 
                 {/* Due Date Field */}
@@ -1420,6 +1525,30 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         }}
         onClose={() => setShowDatePicker(false)}
       />
+
+      {/* Phone Contact Picker Modal */}
+      <ContactPickerModal
+        visible={showContactPicker}
+        onClose={() => setShowContactPicker(false)}
+        onSelectContact={(c) => {
+          setContactName(c.name);
+          if (c.phone) {
+            setContactPhone(c.phone);
+          }
+        }}
+      />
+
+      {/* Debt Notification / Message Modal */}
+      {savedDebtMessageConfig && (
+        <DebtMessageModal
+          config={savedDebtMessageConfig}
+          onClose={() => {
+            setSavedDebtMessageConfig(null);
+            resetForm();
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 });
@@ -1587,6 +1716,27 @@ const styles = StyleSheet.create({
   },
   debtFieldBlock: {
     marginBottom: 8,
+  },
+  contactHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  pickContactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  pickContactBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
   inputWithIcon: {
     flexDirection: 'row',
