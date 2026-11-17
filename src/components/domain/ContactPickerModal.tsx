@@ -31,6 +31,7 @@ interface LocalContact {
   id: string;
   name: string;
   phone?: string;
+  phoneNumbers?: string[];
 }
 
 export const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
@@ -59,30 +60,47 @@ export const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
       }
 
       const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+        fields: [
+          Contacts.Fields.Name,
+          Contacts.Fields.FirstName,
+          Contacts.Fields.LastName,
+          Contacts.Fields.PhoneNumbers,
+        ],
         sort: Contacts.SortTypes.FirstName,
       });
 
       if (data && data.length > 0) {
         const cleaned: LocalContact[] = [];
-        const seenNames = new Set<string>();
+        const seenKeys = new Set<string>();
 
         for (const c of data) {
-          const name = c.name?.trim();
-          if (!name) continue;
+          const rawName = c.name?.trim();
+          const constructedName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+          const name = rawName || constructedName || '';
 
-          let primaryPhone = '';
-          if (c.phoneNumbers && c.phoneNumbers.length > 0) {
-            primaryPhone = c.phoneNumbers[0]?.number?.trim() || '';
+          const phoneNumbers: string[] = [];
+          if (c.phoneNumbers && Array.isArray(c.phoneNumbers)) {
+            for (const p of c.phoneNumbers) {
+              if (p?.number?.trim()) {
+                phoneNumbers.push(p.number.trim());
+              }
+            }
           }
 
-          const key = `${name.toLowerCase()}_${primaryPhone}`;
-          if (!seenNames.has(key)) {
-            seenNames.add(key);
+          if (!name && phoneNumbers.length === 0) continue;
+
+          const displayName =
+            name || (phoneNumbers[0] ? `Contact (${phoneNumbers[0]})` : 'Unknown Contact');
+          const primaryPhone = phoneNumbers[0] || undefined;
+
+          const dedupeKey = `${displayName.toLowerCase()}_${primaryPhone || ''}`;
+          if (!seenKeys.has(dedupeKey)) {
+            seenKeys.add(dedupeKey);
             cleaned.push({
-              id: c.id || `${name}_${cleaned.length}`,
-              name,
-              phone: primaryPhone || undefined,
+              id: c.id || `${displayName}_${cleaned.length}`,
+              name: displayName,
+              phone: primaryPhone,
+              phoneNumbers,
             });
           }
         }
@@ -107,12 +125,33 @@ export const ContactPickerModal: React.FC<ContactPickerModalProps> = ({
 
   const filteredContacts = useMemo(() => {
     if (!searchQuery.trim()) return contactsList;
-    const q = searchQuery.toLowerCase().trim();
-    return contactsList.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.phone && c.phone.replace(/[^\d]/g, '').includes(q.replace(/[^\d]/g, '')))
-    );
+    const query = searchQuery.toLowerCase().trim();
+    const cleanDigits = query.replace(/[^\d]/g, '');
+
+    return contactsList.filter((contact) => {
+      // 1. Check if contact.name?.toLowerCase().includes(searchQuery)
+      const nameMatches = Boolean(contact.name?.toLowerCase().includes(query));
+
+      // 2. Check if any of the contact.phoneNumbers contain the searchQuery
+      const phoneMatches = Boolean(
+        contact.phoneNumbers?.some((num) => {
+          if (!num) return false;
+          const lowerNum = num.toLowerCase();
+          const digitsOnly = num.replace(/[^\d]/g, '');
+          return (
+            lowerNum.includes(query) ||
+            (cleanDigits.length > 0 && digitsOnly.includes(cleanDigits))
+          );
+        }) ||
+        (contact.phone && (
+          contact.phone.toLowerCase().includes(query) ||
+          (cleanDigits.length > 0 && contact.phone.replace(/[^\d]/g, '').includes(cleanDigits))
+        ))
+      );
+
+      // Return true if either the name OR the phone number matches
+      return nameMatches || phoneMatches;
+    });
   }, [contactsList, searchQuery]);
 
   const getInitials = (name: string) => {
