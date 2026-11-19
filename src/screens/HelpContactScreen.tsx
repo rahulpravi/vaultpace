@@ -11,6 +11,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
@@ -21,7 +22,7 @@ import {
   HelpCircle,
   Mail,
   Github,
-  Twitter,
+  Coffee,
   Globe,
   ChevronDown,
   ChevronUp,
@@ -30,6 +31,12 @@ import {
   CheckCircle2,
   Send,
 } from 'lucide-react-native';
+
+// Top-level constants for easy configuration & maintenance
+const BUY_ME_A_COFFEE_URL = 'https://buymeacoffee.com/YOUR_USERNAME';
+const OFFICIAL_WEBSITE_URL = 'https://vaultpace.vercel.app';
+const SUPPORT_EMAIL = 'rahulpravi14@gmail.com';
+const SUPPORT_MAILTO_URL = 'mailto:rahulpravi14@gmail.com?subject=VaultPace%20Support%20(v1.2.0)';
 
 interface FAQItem {
   id: string;
@@ -87,29 +94,27 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
 
   const handleEmailDeveloper = async () => {
     triggerHaptic('medium');
-    const email = 'support@vaultpace.app';
-    const subject = encodeURIComponent(`VaultPace Support Inquiry [${Platform.OS.toUpperCase()}]`);
-    const body = encodeURIComponent(
-      `Hello VaultPace Team,\n\nI have a question/suggestion regarding VaultPace Mobile:\n\n---\nPlatform: ${Platform.OS} (v${Platform.Version})\nApp: VaultPace v1.0.0`
-    );
-    const url = `mailto:${email}?subject=${subject}&body=${body}`;
-
     try {
-      const supported = await Linking.canOpenURL(url);
+      const supported = await Linking.canOpenURL(SUPPORT_MAILTO_URL);
       if (supported) {
-        await Linking.openURL(url);
+        await Linking.openURL(SUPPORT_MAILTO_URL);
       } else {
+        await Clipboard.setStringAsync(SUPPORT_EMAIL);
+        triggerHaptic('selection');
         showAlert({
           type: 'info',
-          title: 'Email Support',
-          message: `You can reach the developer directly at: ${email}`,
+          title: 'Email Copied',
+          message: `${SUPPORT_EMAIL} has been copied to your clipboard. No default email client was detected on your device.`,
         });
       }
-    } catch (e) {
+    } catch {
+      try {
+        await Clipboard.setStringAsync(SUPPORT_EMAIL);
+      } catch {}
       showAlert({
         type: 'info',
-        title: 'Email Support',
-        message: `Please send your inquiries to: ${email}`,
+        title: 'Email Copied',
+        message: `${SUPPORT_EMAIL} has been copied to your clipboard.`,
       });
     }
   };
@@ -146,29 +151,32 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
       return;
     }
     triggerHaptic('success');
-    const email = 'support@vaultpace.app';
     const subject = encodeURIComponent(`VaultPace User Note [${Platform.OS.toUpperCase()}]`);
     const body = encodeURIComponent(
-      `Hello Developer,\n\nHere is my feedback/note:\n\n${feedbackText.trim()}\n\n---\nPlatform: ${Platform.OS} (v${Platform.Version})\nApp: VaultPace v1.0.0`
+      `Hello Developer,\n\nHere is my feedback/note:\n\n${feedbackText.trim()}\n\n---\nPlatform: ${Platform.OS} (v${Platform.Version})\nApp: VaultPace v1.2.0`
     );
-    const url = `mailto:${email}?subject=${subject}&body=${body}`;
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
 
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
         await Linking.openURL(url);
       } else {
+        await Clipboard.setStringAsync(SUPPORT_EMAIL);
         showAlert({
           type: 'success',
           title: 'Feedback Recorded',
-          message: `Thank you! You can also reach the developer directly at: ${email}`,
+          message: `Thank you! You can also reach the developer directly at: ${SUPPORT_EMAIL} (copied to clipboard).`,
         });
       }
     } catch {
+      try {
+        await Clipboard.setStringAsync(SUPPORT_EMAIL);
+      } catch {}
       showAlert({
         type: 'info',
         title: 'Note Ready',
-        message: `Please send your feedback to: ${email}`,
+        message: `Please send your feedback to: ${SUPPORT_EMAIL} (copied to clipboard).`,
       });
     }
 
@@ -235,8 +243,8 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
                 <Mail size={22} color={colors.accent} />
               </View>
               <Text style={[styles.contactName, { color: colors.text }]}>Direct Email</Text>
-              <Text style={[styles.contactDesc, { color: colors.textMuted }]}>
-                support@vaultpace.app
+              <Text style={[styles.contactDesc, { color: colors.textMuted }]} numberOfLines={1}>
+                {SUPPORT_EMAIL}
               </Text>
             </TouchableOpacity>
 
@@ -260,22 +268,29 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => handleOpenLink('https://x.com', 'Twitter')}
+              onPress={() => handleOpenLink(BUY_ME_A_COFFEE_URL, 'Buy Me a Coffee')}
               style={[
                 styles.contactCard,
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
               activeOpacity={0.8}
             >
-              <View style={[styles.contactIcon, { backgroundColor: colors.surfaceSubtle }]}>
-                <Twitter size={22} color="#1DA1F2" />
+              <View
+                style={[
+                  styles.contactIcon,
+                  { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.16)' : '#FEF3C7' },
+                ]}
+              >
+                <Coffee size={22} color="#F59E0B" />
               </View>
-              <Text style={[styles.contactName, { color: colors.text }]}>Twitter / X</Text>
-              <Text style={[styles.contactDesc, { color: colors.textMuted }]}>@VaultPaceApp</Text>
+              <Text style={[styles.contactName, { color: colors.text }]}>Buy Me a Coffee</Text>
+              <Text style={[styles.contactDesc, { color: colors.textMuted }]}>
+                Support independent development
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => handleOpenLink('https://vaultpace.app', 'Website')}
+              onPress={() => handleOpenLink(OFFICIAL_WEBSITE_URL, 'Official Website')}
               style={[
                 styles.contactCard,
                 { backgroundColor: colors.surface, borderColor: colors.border },
@@ -285,9 +300,9 @@ export const HelpContactScreen: React.FC<RootStackScreenProps<'HelpContact'>> = 
               <View style={[styles.contactIcon, { backgroundColor: colors.surfaceSubtle }]}>
                 <Globe size={22} color={colors.accent} />
               </View>
-              <Text style={[styles.contactName, { color: colors.text }]}>Official Web</Text>
+              <Text style={[styles.contactName, { color: colors.text }]}>Official Website</Text>
               <Text style={[styles.contactDesc, { color: colors.textMuted }]}>
-                vaultpace.app
+                vaultpace.vercel.app
               </Text>
             </TouchableOpacity>
           </View>

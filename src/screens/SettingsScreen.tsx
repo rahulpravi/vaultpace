@@ -1076,7 +1076,7 @@ export const SettingsScreen: React.FC<BottomTabProps<'SettingsTab'>> = ({ naviga
           />
           <View style={{ flex: 1 }}>
             <Text style={[styles.privacyTitle, { color: colors.text }]}>
-              VaultPace Mobile v1.0.0
+              VaultPace Mobile v1.2.0
             </Text>
             <Text style={[styles.privacyDesc, { color: colors.textMuted }]}>
               Zero tracking • 100% on-device SQLite/AsyncStorage • Biometric & scrambled PIN protected
