@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency, getCurrencySymbol } from '../store/useStore';
+import { useStore, formatCurrency, getCurrencySymbol, sortCategoriesWithOtherLast } from '../store/useStore';
 import { showAlert } from '../store/useAlertStore';
 import { TransactionRow } from '../components/domain/TransactionRow';
 import { AddTransactionModal } from '../components/domain/AddTransactionModal';
@@ -68,7 +68,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
     [accounts]
   );
 
-  // Deduplicate categories by trimmed name so "Other" (or any duplicate) only appears once
+  // Deduplicate categories by trimmed name so "Other" (or any duplicate) only appears once, and pin "Other" to the end
   const deduplicatedCategories = useMemo(() => {
     const seenNames = new Set<string>();
     const result: typeof categories = [];
@@ -79,7 +79,7 @@ export const TransactionsScreen: React.FC<BottomTabProps<'TransactionsTab'>> = (
         result.push(cat);
       }
     }
-    return result;
+    return sortCategoriesWithOtherLast(result);
   }, [categories]);
 
   // Search & Active Filter State

@@ -14,7 +14,14 @@ import {
 } from 'react-native';
 import { showAlert } from '../../store/useAlertStore';
 import { useAppTheme } from '../../theme/useTheme';
-import { useStore, parseAmountToCents, formatCurrency, getCurrencySymbol } from '../../store/useStore';
+import {
+  useStore,
+  parseAmountToCents,
+  formatCurrency,
+  getCurrencySymbol,
+  sortCategoriesWithOtherLast,
+  isOtherCategory,
+} from '../../store/useStore';
 import { TransactionType, Transaction } from '../../types';
 import { triggerHaptic } from '../../utils/haptics';
 import {
@@ -233,7 +240,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
     let cats = categories.filter((c) =>
       type === 'income' ? c.category_type === 'income' : c.category_type === 'expense'
     );
-    const hasOther = cats.some((c) => c.name.toLowerCase() === 'other');
+    const hasOther = cats.some((c) => isOtherCategory(c));
     if (!hasOther) {
       const fallbackOther = {
         id: type === 'income' ? 'cat-income-other' : 'cat-expense-other',
@@ -246,14 +253,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
       } as const;
       cats = [...cats, fallbackOther];
     }
-    return cats;
+    return sortCategoriesWithOtherLast(cats);
   }, [categories, type]);
 
   // Selected Category Entity
   const selectedCategory = useMemo(() => {
     return (
       filteredCategories.find((c) => c.id === selectedCategoryId) ||
-      filteredCategories.find((c) => c.name.toLowerCase() === 'other') ||
+      filteredCategories.find((c) => isOtherCategory(c)) ||
       filteredCategories[0]
     );
   }, [filteredCategories, selectedCategoryId]);
@@ -420,7 +427,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
         finalCategoryId = matched.id;
       } else {
         const defaultCat =
-          filteredCategories.find((c) => c.name.toLowerCase() === 'other') ||
+          filteredCategories.find((c) => isOtherCategory(c)) ||
           filteredCategories[0];
         finalCategoryId = defaultCat?.id;
       }
@@ -1494,7 +1501,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = React.mem
                   >
                     <Plus size={16} color={colors.accent} strokeWidth={2.4} />
                     <Text style={[styles.addCategoryActionText, { color: colors.accent }]}>
-                      + Add New Category
+                      Add New Category
                     </Text>
                   </TouchableOpacity>
                 </ScrollView>

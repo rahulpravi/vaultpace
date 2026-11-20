@@ -35,6 +35,52 @@ export async function saveSecurityPin(pin: string | null): Promise<void> {
   }
 }
 
+/**
+ * Helper to determine if a category represents an 'Other' fallback category.
+ * Matches by dedicated system ID ('cat-expense-other', 'cat-income-other') or by trimmed case-insensitive name 'other'.
+ */
+export const isOtherCategory = (cat?: { id?: string; name?: string } | null): boolean => {
+  if (!cat) return false;
+  if (cat.id === 'cat-expense-other' || cat.id === 'cat-income-other') return true;
+  return Boolean(cat.name?.trim().toLowerCase() === 'other');
+};
+
+/**
+ * Reusable utility to ensure the 'Other' category is always pinned to the end.
+ * Works seamlessly for:
+ * 1. Single category type lists (e.g. only expenses, or only incomes) -> 'Other' at the end.
+ * 2. Mixed category lists (both expense and income) -> Expenses first (with expense 'Other' last), then Incomes (with income 'Other' last).
+ * Preserves the relative order of all non-Other categories without mutating the input array.
+ */
+export const sortCategoriesWithOtherLast = <T extends { id?: string; name?: string; category_type?: string }>(
+  categories: T[]
+): T[] => {
+  if (!Array.isArray(categories)) return [];
+
+  const hasExpenses = categories.some((c) => c.category_type === 'expense');
+  const hasIncomes = categories.some((c) => c.category_type === 'income');
+
+  // If the list contains both expense and income categories, keep them grouped or separated properly
+  if (hasExpenses && hasIncomes) {
+    const expenses = categories.filter((c) => c.category_type === 'expense');
+    const incomes = categories.filter((c) => c.category_type === 'income');
+    const others = categories.filter((c) => c.category_type !== 'expense' && c.category_type !== 'income');
+
+    const sortGroup = (list: T[]) => [
+      ...list.filter((c) => !isOtherCategory(c)),
+      ...list.filter((c) => isOtherCategory(c)),
+    ];
+
+    return [...sortGroup(expenses), ...sortGroup(incomes), ...sortGroup(others)];
+  }
+
+  // Single category type (or untyped list)
+  return [
+    ...categories.filter((c) => !isOtherCategory(c)),
+    ...categories.filter((c) => isOtherCategory(c)),
+  ];
+};
+
 export const DEFAULT_ACCOUNTS: Account[] = [
   {
     id: 'acc-1',
@@ -565,22 +611,24 @@ export const useStore = create<TrackerStore>()(
       addCategory: (cat) => {
         const newCat: Category = {
           ...cat,
-          id: `cat-${Date.now()}`,
+          id: `cat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         };
-        set({ categories: [...get().categories, newCat] });
+        const updated = sortCategoriesWithOtherLast([...get().categories, newCat]);
+        set({ categories: updated });
         return newCat;
       },
 
       updateCategory: (id, updates) => {
-        set({
-          categories: get().categories.map((c) => (c.id === id ? { ...c, ...updates } : c)),
-        });
+        const updated = sortCategoriesWithOtherLast(
+          get().categories.map((c) => (c.id === id ? { ...c, ...updates } : c))
+        );
+        set({ categories: updated });
       },
 
       deleteCategory: (id) => {
         const catToDelete = get().categories.find((c) => c.id === id);
         // Prevent deleting the fallback 'Other' category
-        if (!catToDelete || catToDelete.name.toLowerCase() === 'other') {
+        if (!catToDelete || isOtherCategory(catToDelete)) {
           return;
         }
 
@@ -589,7 +637,7 @@ export const useStore = create<TrackerStore>()(
           (c) =>
             c.id !== id &&
             c.category_type === catToDelete.category_type &&
-            c.name.toLowerCase() === 'other'
+            isOtherCategory(c)
         );
         const fallbackOtherId =
           fallbackOther?.id ||
@@ -605,7 +653,7 @@ export const useStore = create<TrackerStore>()(
         delete nextCategoryLimits[id];
 
         set({
-          categories: get().categories.filter((c) => c.id !== id),
+          categories: sortCategoriesWithOtherLast(get().categories.filter((c) => c.id !== id)),
           categoryLimits: nextCategoryLimits,
           transactions: updatedTransactions,
         });
@@ -724,7 +772,7 @@ export const useStore = create<TrackerStore>()(
           // 2. Categories
           const validCategories =
             Array.isArray(payload.categories) && payload.categories.length > 0
-              ? payload.categories
+              ? sortCategoriesWithOtherLast(payload.categories)
               : state.categories;
 
           // 3. Budgets
@@ -926,7 +974,7 @@ export const useStore = create<TrackerStore>()(
           });
 
           const hasExpenseOther = state.categories.some(
-            (c) => c.category_type === 'expense' && c.name.toLowerCase() === 'other'
+            (c) => c.category_type === 'expense' && isOtherCategory(c)
           );
           if (!hasExpenseOther) {
             state.categories.push({
@@ -940,7 +988,7 @@ export const useStore = create<TrackerStore>()(
             });
           }
           const hasIncomeOther = state.categories.some(
-            (c) => c.category_type === 'income' && c.name.toLowerCase() === 'other'
+            (c) => c.category_type === 'income' && isOtherCategory(c)
           );
           if (!hasIncomeOther) {
             state.categories.push({
@@ -953,6 +1001,9 @@ export const useStore = create<TrackerStore>()(
               sort_order: 100,
             });
           }
+
+          // Always pin 'Other' category last across all category types
+          state.categories = sortCategoriesWithOtherLast(state.categories);
         }
 
         if (state && typeof state.processRecurringTransactions === 'function') {

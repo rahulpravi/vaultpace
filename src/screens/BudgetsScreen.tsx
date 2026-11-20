@@ -14,8 +14,16 @@ import {
 import { showAlert } from '../store/useAlertStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/useTheme';
-import { useStore, formatCurrency, parseAmountToCents, getCurrencySymbol } from '../store/useStore';
-import { BudgetProgressCard } from '../components/domain/BudgetProgressCard';
+import {
+  useStore,
+  formatCurrency,
+  parseAmountToCents,
+  getCurrencySymbol,
+  sortCategoriesWithOtherLast,
+  isOtherCategory,
+  DEFAULT_BUDGETS,
+} from '../store/useStore';
+import { MonthlySpendingDonut } from '../components/domain/MonthlySpendingDonut';
 import { PinVerificationModal } from '../components/security/PinVerificationModal';
 import { exportTransactionsToPdf } from '../utils/exportPdf';
 import { BottomTabProps } from '../navigation/types';
@@ -42,6 +50,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const deleteCategory = useStore((s) => s.deleteCategory);
   const getTotalNetWorthCents = useStore((s) => s.getTotalNetWorthCents);
 
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [newLimitStr, setNewLimitStr] = useState('');
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -64,7 +73,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   const hasLockConfigured =
     Boolean(settings.security_pin) || settings.pin_lock_enabled || settings.biometrics_enabled;
 
-  // Precompute spending and count by category in a single O(N) pass for instant 60fps rendering
+  // Precompute spending and count by category in a single O(N) pass for instant 60fps rendering, bound to selectedMonth
   const categoryStatsMap = useMemo(() => {
     const map: Record<string, { spent: number; count: number }> = {};
     for (const t of transactions) {
@@ -72,7 +81,9 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         t.transaction_type === 'expense' &&
         !t.is_settlement &&
         !t.notes?.toLowerCase().startsWith('settled:') &&
-        t.category_id
+        t.category_id &&
+        t.transaction_date &&
+        t.transaction_date.startsWith(selectedMonth)
       ) {
         if (!map[t.category_id]) {
           map[t.category_id] = { spent: 0, count: 0 };
@@ -82,10 +93,10 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
       }
     }
     return map;
-  }, [transactions]);
+  }, [transactions, selectedMonth]);
 
   const expenseCategories = useMemo(
-    () => categories.filter((c) => c.category_type === 'expense'),
+    () => sortCategoriesWithOtherLast(categories.filter((c) => c.category_type === 'expense')),
     [categories]
   );
 
@@ -132,7 +143,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
 
   const handleDeleteCategory = useCallback(
     (cat: Category) => {
-      if (cat.name.toLowerCase() === 'other') {
+      if (isOtherCategory(cat)) {
         showAlert({
           type: 'warning',
           title: 'Cannot Delete',
@@ -176,7 +187,8 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
   );
 
   const handleOpenEditBudget = useCallback(
-    (b: Budget) => {
+    (b?: Budget) => {
+      const targetBudget = b || budgets[0] || DEFAULT_BUDGETS[0];
       triggerHaptic('light');
       showAlert({
         type: 'info',
@@ -194,18 +206,18 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
                   subtitle: 'Enter your PIN to adjust your monthly spending cap.',
                   actionType: 'primary',
                   onSuccess: () => {
-                    setEditingBudget(b);
+                    setEditingBudget(targetBudget);
                   },
                 });
               } else {
-                setEditingBudget(b);
+                setEditingBudget(targetBudget);
               }
             },
           },
         ],
       });
     },
-    [hasLockConfigured]
+    [hasLockConfigured, budgets]
   );
 
   const handleSaveLimit = useCallback(() => {
@@ -283,9 +295,9 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
             <BarChart3 size={20} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Spending Report</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Budgets & Insights</Text>
             <Text style={[styles.headerSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
-              Category allowances & limit analytics
+              Track limits, burn rate & forecasts
             </Text>
           </View>
         </View>
@@ -310,15 +322,16 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
       >
-        {/* Main Spending Progress Cards */}
-        {budgets.map((b) => (
-          <BudgetProgressCard
-            key={b.id}
-            budget={b}
-            transactions={transactions}
-            onPressEdit={() => handleOpenEditBudget(b)}
-          />
-        ))}
+        {/* Interactive Donut (Pie) Chart Dashboard Card */}
+        <MonthlySpendingDonut
+          budget={budgets[0] || DEFAULT_BUDGETS[0]}
+          transactions={transactions}
+          categories={expenseCategories}
+          selectedMonth={selectedMonth}
+          onMonthChange={setSelectedMonth}
+          onPressEditBudget={() => handleOpenEditBudget(budgets[0])}
+          currencySymbol={currencySymbol}
+        />
 
         {/* Category Allowances Header with + Add Category Button */}
         <View style={styles.sectionHeader}>
@@ -371,7 +384,13 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
                 <View style={styles.cardTop}>
                   <View style={styles.catLeft}>
                     <View style={[styles.catColorDot, { backgroundColor: cat.color }]} />
-                    <Text style={[styles.catName, { color: colors.text }]}>{cat.name}</Text>
+                    <Text
+                      style={[styles.catName, { color: colors.text }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {cat.name}
+                    </Text>
                   </View>
 
                   <View style={styles.catRightActions}>
@@ -398,7 +417,7 @@ export const BudgetsScreen: React.FC<BottomTabProps<'BudgetsTab'>> = () => {
                     </TouchableOpacity>
 
                     {/* Delete Category Button */}
-                    {cat.name.toLowerCase() !== 'other' && (
+                    {!isOtherCategory(cat) && (
                       <TouchableOpacity
                         activeOpacity={0.7}
                         onPress={() => handleDeleteCategory(cat)}
@@ -687,23 +706,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   catLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginRight: 8,
   },
   catColorDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
+    flexShrink: 0,
   },
   catName: {
     fontSize: 14,
     fontWeight: '700',
+    flexShrink: 1,
   },
   catRightActions: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   catLimit: {
     fontSize: 13,
